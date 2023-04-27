@@ -1,0 +1,145 @@
+# File name: figure5.R
+# In: 
+#   - replication_data.RData
+# Out: 
+#   - /Figures/figure5.pdf
+
+
+require(lme4)
+require(lfe)
+require(MatchIt)
+require(WeightIt)
+require(tjbal)
+require(optmatch)
+require(stargazer)
+require(cobalt)
+require(tidyverse)
+require(ggridges)
+
+rm(list = ls())
+gc()
+####################################################################################################################### Loading data
+load('../Data/replication_data.RData')
+
+
+####################################################################################################################### Loading functions
+source('C:\\Users\\danie\\Dropbox\\Replication\\dataverse_files\\Replication\\code\\helper_functions.R')
+
+
+
+
+
+
+
+D <- unlist(lapply(c("sc_","ln_"),function(x) paste0(x,paste0(c("county_","DMA_","state_"),"cases"))))
+FE <- c("0","DMA_CODE","date")
+covariates <- c("sc_CTY_LTHS","sc_CTY_CollUp",
+                "sc_CTY_LT30yo","sc_CTY_60Up",
+                "sc_CTY_Below_poverty_level_AGE_18_64","sc_CTY_Female_hher_no_husbandhh",
+                "sc_CTY_Unem_rate_pop_16_over","sc_CTY_Labor_Force_Part_Rate_pop_16_over",
+                "sc_CTY_Manufactur","sc_CTY_Md_inc_hhs",
+                "sc_CTY_POPPCT_RURAL","sc_CTY_Speak_only_English","sc_CTY_White","sc_CTY_Black_or_African_American",
+                "ln_CTY_tot_pop","sc_turnout_pct_20")
+
+
+
+
+
+
+
+# Week-by-week
+weeks <- c("2020-02-22","2020-02-29",
+           "2020-03-03","2020-03-10","2020-03-17","2020-04-07")
+
+resWkly <- list()
+for(y in c("pcttw_sanders")) {
+  for(d in c("DMA_March10Cases",
+             "DMA_March17Cases")) {
+    for(fe in "0") {
+      
+      wkly <- wklyBin <- wklyMatch <- wklyWeight <- wklyMatchBin <- wklyWeightBin <- NULL
+      if(grepl("March",d)) {
+        wks <- weeks
+      } else {
+        wks <- weeks[4:6]
+      }
+      for(week in wks) {
+        if(fe == 'stab' & week == '2020-04-07') { next }
+        cat(paste0(week,'/',y,'/',d,'/',fe,'\n'))
+        if(grepl("county",d) & week == "2020-03-01") { next }
+        if(week < as.Date("2020-03-01")) {
+          tmp <- finalDat %>% select(y,matches(gsub("sc_|ln_","",d)),DMA_CODE,stab,date,c(covariates,paste0(y,"16"))) %>% filter(date < as.Date(week)) %>% filter(complete.cases(.))
+        } else {
+          tmp <- finalDat %>% select(y,matches(gsub("sc_|ln_","",d)),DMA_CODE,stab,date,c(covariates,paste0(y,"16"))) %>% filter(date == as.Date(week)) %>% filter(complete.cases(.))
+        }
+        tmp$treatBin <- ifelse(tmp[[gsub("sc_|ln_","",d)]] > 0,1,0)
+        
+        wkly <- bind_rows(wkly,data.frame(t(summary(felm(as.formula(paste0("scale(",y,") ~ scale(",gsub("sc_","",d),") + ",
+                                                                           paste(unique(c(covariates,paste0(y,"16"))),collapse = "+"),
+                                                                           "| ",fe," | 0 | 0")),tmp))$coefficients[paste0("scale(",gsub("sc_","",d),")"),]),date = week))
+        
+        wklyBin <- bind_rows(wklyBin,data.frame(t(summary(felm(as.formula(paste0("scale(",y,") ~ treatBin + ",
+                                                                                 paste(unique(c(covariates,paste0(y,"16"))),collapse = "+"),
+                                                                                 "| ",fe," | 0 | 0")),tmp))$coefficients["treatBin",]),date = week))
+        
+        if(length(unique(tmp$treatBin)) == 2) { 
+          m.out <- try(matchit(formula = as.formula(paste("treatBin ~ ",paste(c(covariates,paste0(y,"16")),collapse = " + "))),
+                               data = tmp,
+                               method = "nearest",
+                               distance = "mahalanobis"))
+          if(class(m.out) != "try-error") {
+            m.data <- match.data(m.out)
+            wklyMatch <- bind_rows(wklyMatch,data.frame(t(summary(felm(as.formula(paste0("scale(",y,") ~ scale(",gsub("sc_","",d),") + ",
+                                                                                         paste(c(covariates,paste0(y,"16")),collapse = " + ")," | ",fe," | 0 | ",fe)),
+                                                                       m.data,weights = m.data$weights))$coefficients[paste0("scale(",gsub("sc_","",d),")"),]),date = week))
+            wklyMatchBin <- bind_rows(wklyMatchBin,data.frame(t(summary(felm(as.formula(paste0("scale(",y,") ~ treatBin + ",
+                                                                                               paste(c(covariates,paste0(y,"16")),collapse = " + ")," | ",fe," | 0 | ",fe)),
+                                                                             m.data,weights = m.data$weights))$coefficients["treatBin",]),date = week))
+          }
+          
+          W.out <- try(weightit(formula(paste0("treatBin ~ ",paste(c(covariates,paste0(y,"16")),collapse = " + "))),
+                                data = tmp, estimand = "ATT", method = "cbps"))
+          
+          
+          if(class(W.out) != "try_error") {
+            wklyWeight <- bind_rows(wklyWeight,data.frame(t(summary(felm(as.formula(paste0("scale(",y,") ~ scale(",gsub("sc_","",d),") + ",
+                                                                                           paste(c(covariates,paste0(y,"16")),collapse = " + ")," | ",fe," | 0 | ",fe)),
+                                                                         tmp,weights = W.out$weights))$coefficients[paste0("scale(",gsub("sc_","",d),")"),]),date = week))
+            
+            wklyWeightBin <- bind_rows(wklyWeightBin,data.frame(t(summary(felm(as.formula(paste0("scale(",y,") ~ treatBin + ",
+                                                                                                 paste(c(covariates,paste0(y,"16")),collapse = " + ")," | ",fe," | 0 | ",fe)),
+                                                                               tmp,weights = W.out$weights))$coefficients["treatBin",]),date = week))
+          }
+        }
+      }
+      resWkly[[y]][[d]][[fe]]$basic$cont <- wkly
+      resWkly[[y]][[d]][[fe]]$basic$bin <- wklyBin
+      resWkly[[y]][[d]][[fe]]$matching$cont <- wklyMatch
+      resWkly[[y]][[d]][[fe]]$matching$bin <- wklyMatchBin
+      resWkly[[y]][[d]][[fe]]$weighting$cont <- wklyWeight
+      resWkly[[y]][[d]][[fe]]$weighting$bin <- wklyWeightBin
+    }
+  }
+}
+
+
+pdf('../Figures/figure5.pdf',width = 7,height = 5)
+bind_rows(resWkly$pcttw_sanders$DMA_March17Cases$`0`$basic$cont %>%
+                      mutate(type = 'basic',
+                             date = as.Date(date) - .25),
+                    resWkly$pcttw_sanders$DMA_March17Cases$`0`$weighting$cont %>%
+                      mutate(type = 'weighting',
+                             date = as.Date(date) + .25)) %>%
+  ggplot(aes(x = date,y = Estimate,color = type,fill = type)) + 
+  geom_hline(yintercept = 0,linetype = 'dashed') + 
+  geom_point(size = 1.5) + 
+  geom_rect(aes(xmin = date-.25,ymin = Estimate - 1.96*`Std..Error`,
+                    xmax = date+.25,ymax = Estimate + 1.96*`Std..Error`),alpha = .5,color = NA) + 
+  theme_ridges() + 
+  scale_color_manual(values = c('basic' = 'grey50','weighting' = 'grey40'),
+                     guide = F) + 
+  scale_fill_manual(name = 'Method',values = c('basic' = 'grey70','weighting' = 'grey40'),
+                    labels = c('basic' = 'Unweighted OLS','weighting' = 'CBPS Weights')) + 
+  xlab('Date') + ylab('Coefficient on March 17 Cases') + 
+  theme(legend.position = 'bottom')
+dev.off()

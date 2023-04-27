@@ -1,0 +1,169 @@
+# File name: SIfigure3_SIfigure4_SIfigure_5.R
+# In: 
+#   - replication_data.RData
+#   - 
+# Out: 
+#   - /Figures/SI_figure3.pdf
+#   - /Figures/SI_figure4.pdf
+#   - /Figures/SI_figure5.pdf
+
+require(lme4)
+require(lfe)
+require(MatchIt)
+require(WeightIt)
+require(tjbal)
+require(optmatch)
+require(stargazer)
+require(cobalt)
+require(tidyverse)
+require(gridExtra)
+require(ggridges)
+require(ggrepel)
+#install.packages("ggrepel")
+
+rm(list = ls())
+gc()
+
+
+
+
+####################################################################################################################### Loading data
+load(paste0("C:\\Users\\danie\\Dropbox\\Replication\\dataverse_files\\Replication\\Data\\Results\\SI-data.RData")) ## SI_robust_prep.R script which is designed to run on a computing cluster for speed.
+
+
+
+
+
+####################################################################################################################### Loading functions
+source('C:\\Users\\danie\\Dropbox\\Replication\\dataverse_files\\Replication\\code\\helper_functions.R')
+
+
+
+
+
+# SI Figure 3
+toplot <- NULL
+for(post in c('2020-03-03','2020-03-10','2020-03-17')) {
+  for(mod in c('basic','matching','weighting')) {
+    toplot <- bind_rows(toplot,data.frame(est = resSI$pcttw_sanders$DMA_$March17Cases$DMA_CODE$`2020-03-01`[[post]]$felm[[mod]]$plac$did,
+                                          post = factor(ifelse(post == '2020-03-03','Control: February\nTreated: March 3rd',
+                                                               ifelse(post == '2020-03-10','Control: February\nTreated: March 10th',
+                                                                      'Control: February\nTreated: March 17th')),
+                                                        levels = c('Control: February\nTreated: March 3rd',
+                                                                   'Control: February\nTreated: March 10th',
+                                                                   'Control: February\nTreated: March 17th')),
+                                          model = Hmisc::capitalize(mod),stringsAsFactors = F))
+  }
+}
+
+
+pdf('../Figures/SI_figure3.pdf',width = 8,height = 5)
+toplot %>%
+  ggplot(aes(x = est,y = factor(model,levels = rev(c('Basic','Matching','Weighting'))))) + 
+  geom_vline(xintercept = 0,linetype = 'dashed') + 
+  geom_density_ridges(alpha = .4,color = 'white') + 
+  facet_wrap(~post) + ylab('Method') + xlab("Bootstrapped Estimates") + 
+  theme_ridges() + 
+  theme(
+    strip.text.x = element_text(
+      size = 10, color = "black", face = "bold",hjust = 0,vjust = .5
+    ),
+    strip.background = element_rect(
+      color="white", fill="white", size=0, linetype="solid"
+    )
+  )
+dev.off()
+
+
+
+
+# SI Figure 4
+toplot <- NULL
+for(pre in c('2020-03-01','2020-03-03','2020-03-10','2020-03-17')) {
+  for(post in c('2020-03-01','2020-03-03','2020-03-10','2020-03-17')) {
+    for(mod in c('basic','weighting','matching')) {
+      tmp <- resSI$pcttw_sanders$DMA_$March10Cases$DMA_CODE[[pre]][[post]]$felm[[mod]]$bin['treat',]
+      if(is.null(tmp)) { next }
+      tmp <- data.frame(t(tmp))
+      colnames(tmp) <- c('est','se','tstat','pval')
+      tmp$pre <- pre
+      tmp$post <- post
+      tmp$mod <- mod
+      toplot <- bind_rows(toplot,tmp)
+    }
+  }
+}
+
+
+pdf('../Figures/SI_figure4.pdf',width = 8,height = 5)
+toplot %>%
+  mutate(post = factor(gsub('03-03','ST',
+                     gsub('03-01','Feb',
+                          gsub('2020-','',post))),levels = c('Feb','ST','03-10','03-17')),
+         pre = factor(paste0('Pre Election: ',gsub('03-03','Super Tuesday',
+                                   gsub('03-01','February',
+                                        gsub('2020-','',pre)))),
+                      levels = paste0('Pre Election: ',c('February','Super Tuesday','03-10','03-17')))) %>%
+  ggplot(aes(x = post,y = est,shape = mod)) + 
+  geom_point(position = position_dodge(width = .2),size = 2,alpha = .7) +
+  geom_errorbar(aes(ymin = est-2*se,ymax = est+2*se),width = .2,
+                position = position_dodge(width = .2),alpha = .4) + 
+  geom_hline(yintercept = 0,linetype = 'dashed') +
+  facet_wrap(~pre) + 
+  scale_shape_manual(name = 'Model',
+                     values = c('basic' = 19,'matching' = 17,'weighting' = 15),
+                     labels = c('Basic','Matching','Weighting')) + 
+  theme_ridges() + 
+  theme(legend.position = 'bottom') + 
+  xlab('Post Election') + ylab('Effect of DMA Exposure')
+dev.off()
+
+
+
+
+# SI Figure 5
+toplot <- NULL
+for(pre in c('2020-03-01','2020-03-03','2020-03-10','2020-03-17')) {
+  for(post in c('2020-03-01','2020-03-03','2020-03-10','2020-03-17')) {
+    for(mod in c('basic','weighting','matching')) {
+      tmp <- resSI$pcttw_sanders$DMA_$March17Cases$`0`[[pre]][[post]]$felm[[mod]]$did$mfx
+      if(is.null(tmp)) { next }
+      tmp <- data.frame(tmp)
+      tmp$pre <- pre
+      tmp$post <- post
+      tmp$mod <- mod
+      toplot <- bind_rows(toplot,tmp)
+    }
+  }
+}
+
+
+pdf('../Figures/SI_figure5.pdf',width = 8,height = 5)
+toplot %>%
+  filter(pre < post,
+         mod == 'weighting') %>% 
+  mutate(x_2 = ifelse(x_2 == 0,gsub('2020-','',pre),gsub('2020-','',post)),
+         sig = ifelse(grepl('\\*',est),'Sig','Insig')) %>%
+  mutate(x_2 = factor(ifelse(x_2 == '03-01','Feb',
+                             ifelse(x_2 == '03-03','ST',x_2)),
+                      levels = c('Feb','ST','03-10','03-17'))) %>%
+  mutate(pre = factor(paste0('Pre: ',ifelse(pre == '2020-03-01','February',
+                                     ifelse(pre == '2020-03-03','Super Tuesday',pre))),
+                      levels = paste0('Pre: ',c('February','Super Tuesday','2020-03-10','2020-03-17'))),
+         post = factor(paste0('Post: ',ifelse(post == '2020-03-01','February',
+                                     ifelse(post == '2020-03-03','Super Tuesday',post))),
+                       levels = paste0('Post: ',c('February','Super Tuesday','2020-03-10','2020-03-17')))) %>%
+  ggplot(aes(x = x_2,y = delta_1,color = sig)) + 
+  geom_point(position = position_dodge(width = .2),size = 2) +
+  geom_errorbar(aes(ymin = lb,ymax = ub),width = .1,size = 1,
+                position = position_dodge(width = .2)) + 
+  geom_hline(yintercept = 0,linetype = 'dashed') +
+  facet_wrap(~pre+post,scales = 'free',ncol = 3) + 
+  scale_color_manual(name = 'Sig.',values = c('Sig' = 'black','Insig' = 'grey50')) + 
+  scale_linetype_manual(name = 'Model',
+                        values = c('basic' = 'dotdash','matching' = 'dashed','weighting' = 'solid')) +
+  scale_shape_manual(name = 'Model',
+                        values = c('basic' = 19,'matching' = 17,'weighting' = 15)) +
+  theme_ridges() + xlab('Comparison Periods') + ylab('Marginal Effect of Exposure') + 
+  theme(legend.position = 'bottom')
+dev.off()

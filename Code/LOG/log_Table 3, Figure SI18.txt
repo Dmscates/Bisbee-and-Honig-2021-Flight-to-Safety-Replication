@@ -1,0 +1,462 @@
+
+> # File name: table3_SIfigure18.R
+> # In: 
+> #   - /Data/primary_data.RData: Primary election results for the house of representatives, linked with district-level cases and deaths
+> # Out: 
+> #   - /Tables/table3.tex
+> #   - /Figures/SI_figure18.pdf
+> 
+> require(lme4)
+
+> require(lfe)
+
+> require(MatchIt)
+
+> require(WeightIt)
+
+> require(tjbal)
+
+> require(optmatch)
+
+> require(stargazer)
+
+> require(cobalt)
+
+> require(tidyverse)
+
+> require(stargazer)
+
+> require(gridExtra)
+Loading required package: gridExtra
+
+Attaching package: ‘gridExtra’
+
+The following object is masked from ‘package:dplyr’:
+
+    combine
+
+
+> require(ggridges)
+Loading required package: ggridges
+
+> require(ggrepel)
+Loading required package: ggrepel
+
+> rm(list = ls())
+
+> gc()
+          used  (Mb) gc trigger  (Mb) max used  (Mb)
+Ncells 3414325 182.4    5356451 286.1  5356451 286.1
+Vcells 6450371  49.3   23742605 181.2 37097814 283.1
+
+> load('../Data/primary_data.RData')
+
+> # Table 3
+> summary(mVScaseEXT <- felm(voteSh ~ extreme*log(casesSum+1) | stcd | 0 | stcd,toAnal))
+
+Call:
+   felm(formula = voteSh ~ extreme * log(casesSum + 1) | stcd |      0 | stcd, data = toAnal) 
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-0.70533 -0.17247 -0.02463  0.14697  0.86125 
+
+Coefficients:
+                           Estimate Cluster s.e. t value Pr(>|t|)    
+extreme                    0.341506     0.043115   7.921  2.1e-14 ***
+log(casesSum + 1)         -0.044253     0.150293  -0.294  0.76856    
+extreme:log(casesSum + 1) -0.016041     0.006065  -2.645  0.00848 ** 
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.2964 on 1592 degrees of freedom
+Multiple R-squared(full model): 0.5156   Adjusted R-squared: 0.386 
+Multiple R-squared(proj model): 0.02195   Adjusted R-squared: -0.2398 
+F-statistic(full model, *iid*):3.978 on 426 and 1592 DF, p-value: < 2.2e-16 
+F-statistic(proj model):  31.4 on 3 and 423 DF, p-value: < 2.2e-16 
+
+
+
+> summary(mVScaseJST <- felm(voteSh ~ justice*log(casesSum+1) | stcd | 0 | stcd,toAnal))
+
+Call:
+   felm(formula = voteSh ~ justice * log(casesSum + 1) | stcd |      0 | stcd, data = toAnal) 
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-0.70533 -0.17432 -0.02339  0.15301  0.86125 
+
+Coefficients:
+                          Estimate Cluster s.e. t value Pr(>|t|)   
+justice                    0.13384      0.05038   2.657  0.00819 **
+log(casesSum + 1)         -0.01421      0.15085  -0.094  0.92498   
+justice:log(casesSum + 1)  0.01377      0.01212   1.136  0.25640   
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.2994 on 1592 degrees of freedom
+Multiple R-squared(full model): 0.5059   Adjusted R-squared: 0.3737 
+Multiple R-squared(proj model): 0.002474   Adjusted R-squared: -0.2645 
+F-statistic(full model, *iid*):3.827 on 426 and 1592 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 11.62 on 3 and 423 DF, p-value: 2.493e-07 
+
+
+
+> summary(mVScaseTEA <- felm(voteSh ~ tea*log(casesSum+1) | stcd | 0 | stcd,toAnal))
+
+Call:
+   felm(formula = voteSh ~ tea * log(casesSum + 1) | stcd | 0 |      stcd, data = toAnal) 
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-0.70533 -0.17356 -0.02404  0.14697  0.86125 
+
+Coefficients:
+                      Estimate Cluster s.e. t value Pr(>|t|)    
+tea                    0.36370      0.04333   8.395 7.09e-16 ***
+log(casesSum + 1)     -0.03135      0.15054  -0.208  0.83512    
+tea:log(casesSum + 1) -0.01992      0.00625  -3.188  0.00154 ** 
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.2967 on 1592 degrees of freedom
+Multiple R-squared(full model): 0.5147   Adjusted R-squared: 0.3848 
+Multiple R-squared(proj model): 0.02012   Adjusted R-squared: -0.2421 
+F-statistic(full model, *iid*):3.963 on 426 and 1592 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 31.22 on 3 and 423 DF, p-value: < 2.2e-16 
+
+
+
+> summary(mVSdthEXT <- felm(voteSh ~ extreme*log(deathsSum+1) | stcd | 0 | stcd,toAnal))
+
+Call:
+   felm(formula = voteSh ~ extreme * log(deathsSum + 1) | stcd |      0 | stcd, data = toAnal) 
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-0.70533 -0.17281 -0.02503  0.14774  0.86125 
+
+Coefficients:
+                            Estimate Cluster s.e. t value Pr(>|t|)    
+extreme                     0.303843     0.041758   7.276 1.68e-12 ***
+log(deathsSum + 1)         -0.139755     0.168678  -0.829   0.4078    
+extreme:log(deathsSum + 1) -0.016871     0.009166  -1.841   0.0664 .  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.2965 on 1592 degrees of freedom
+Multiple R-squared(full model): 0.5154   Adjusted R-squared: 0.3857 
+Multiple R-squared(proj model): 0.02157   Adjusted R-squared: -0.2402 
+F-statistic(full model, *iid*):3.975 on 426 and 1592 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 27.38 on 3 and 423 DF, p-value: 3.377e-16 
+
+
+
+> summary(mVSdthJST <- felm(voteSh ~ justice*log(deathsSum+1) | stcd | 0 | stcd,toAnal))
+
+Call:
+   felm(formula = voteSh ~ justice * log(deathsSum + 1) | stcd |      0 | stcd, data = toAnal) 
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-0.70533 -0.17432 -0.02339  0.15301  0.86125 
+
+Coefficients:
+                           Estimate Cluster s.e. t value Pr(>|t|)    
+justice                     0.17626      0.04770   3.696 0.000248 ***
+log(deathsSum + 1)         -0.07218      0.17354  -0.416 0.677664    
+justice:log(deathsSum + 1)  0.01353      0.01697   0.797 0.425661    
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.2994 on 1592 degrees of freedom
+Multiple R-squared(full model): 0.506   Adjusted R-squared: 0.3738 
+Multiple R-squared(proj model): 0.002515   Adjusted R-squared: -0.2644 
+F-statistic(full model, *iid*):3.827 on 426 and 1592 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 9.948 on 3 and 423 DF, p-value: 2.383e-06 
+
+
+
+> summary(mVSdthTEA <- felm(voteSh ~ tea*log(deathsSum+1) | stcd | 0 | stcd,toAnal))
+
+Call:
+   felm(formula = voteSh ~ tea * log(deathsSum + 1) | stcd | 0 |      stcd, data = toAnal) 
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-0.70533 -0.17392 -0.02393  0.14774  0.86125 
+
+Coefficients:
+                       Estimate Cluster s.e. t value Pr(>|t|)    
+tea                     0.32116      0.04440   7.233 2.23e-12 ***
+log(deathsSum + 1)     -0.12417      0.16970  -0.732   0.4648    
+tea:log(deathsSum + 1) -0.02197      0.00998  -2.201   0.0282 *  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.2968 on 1592 degrees of freedom
+Multiple R-squared(full model): 0.5144   Adjusted R-squared: 0.3845 
+Multiple R-squared(proj model): 0.01957   Adjusted R-squared: -0.2428 
+F-statistic(full model, *iid*):3.959 on 426 and 1592 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 25.05 on 3 and 423 DF, p-value: 6.133e-15 
+
+
+
+> summary(mVTcaseEXT <- felm(log(votes+1) ~ extreme*log(casesSum+1) + log(totVotes+1) | stcd | 0 | stcd,toAnal %>% filter(votes != 0)))
+
+Call:
+   felm(formula = log(votes + 1) ~ extreme * log(casesSum + 1) +      log(totVotes + 1) | stcd | 0 | stcd, data = toAnal %>% filter(votes !=      0)) 
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-3.0157 -0.6931 -0.0308  0.6756  3.9788 
+
+Coefficients:
+                          Estimate Cluster s.e. t value Pr(>|t|)    
+extreme                    1.75318      0.14292  12.267  < 2e-16 ***
+log(casesSum + 1)          0.10826      0.43295   0.250  0.80270    
+log(totVotes + 1)          0.50021      0.03642  13.733  < 2e-16 ***
+extreme:log(casesSum + 1) -0.05967      0.02285  -2.611  0.00945 ** 
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 1.157 on 1301 degrees of freedom
+Multiple R-squared(full model): 0.426   Adjusted R-squared: 0.2813 
+Multiple R-squared(proj model): 0.1445   Adjusted R-squared: -0.07114 
+F-statistic(full model, *iid*):2.944 on 328 and 1301 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 137.6 on 4 and 324 DF, p-value: < 2.2e-16 
+
+
+
+> summary(mVTcaseJST <- felm(log(votes+1) ~ justice*log(casesSum+1) + log(totVotes+1) | stcd | 0 | stcd,toAnal %>% filter(votes != 0)))
+
+Call:
+   felm(formula = log(votes + 1) ~ justice * log(casesSum + 1) +      log(totVotes + 1) | stcd | 0 | stcd, data = toAnal %>% filter(votes !=      0)) 
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-3.0754 -0.7186 -0.0209  0.6986  3.9669 
+
+Coefficients:
+                          Estimate Cluster s.e. t value Pr(>|t|)    
+justice                    1.40271      0.25233   5.559 5.67e-08 ***
+log(casesSum + 1)          0.11740      0.43013   0.273    0.785    
+log(totVotes + 1)          0.50528      0.03685  13.712  < 2e-16 ***
+justice:log(casesSum + 1)  0.05264      0.06202   0.849    0.397    
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 1.18 on 1301 degrees of freedom
+Multiple R-squared(full model): 0.4034   Adjusted R-squared: 0.253 
+Multiple R-squared(proj model): 0.1108   Adjusted R-squared: -0.1134 
+F-statistic(full model, *iid*):2.682 on 328 and 1301 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 106.1 on 4 and 324 DF, p-value: < 2.2e-16 
+
+
+
+> summary(mVTcaseTEA <- felm(log(votes+1) ~ tea*log(casesSum+1) + log(totVotes+1) | stcd | 0 | stcd,toAnal %>% filter(votes != 0)))
+
+Call:
+   felm(formula = log(votes + 1) ~ tea * log(casesSum + 1) + log(totVotes +      1) | stcd | 0 | stcd, data = toAnal %>% filter(votes != 0)) 
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-3.0156 -0.6920 -0.0238  0.6815  3.9629 
+
+Coefficients:
+                      Estimate Cluster s.e. t value Pr(>|t|)    
+tea                    1.79623      0.15199  11.818  < 2e-16 ***
+log(casesSum + 1)      0.19710      0.45454   0.434 0.664844    
+log(totVotes + 1)      0.50698      0.03649  13.895  < 2e-16 ***
+tea:log(casesSum + 1) -0.07628      0.02208  -3.455 0.000624 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 1.162 on 1301 degrees of freedom
+Multiple R-squared(full model): 0.4211   Adjusted R-squared: 0.2751 
+Multiple R-squared(proj model): 0.1372   Adjusted R-squared: -0.08036 
+F-statistic(full model, *iid*):2.885 on 328 and 1301 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 120.9 on 4 and 324 DF, p-value: < 2.2e-16 
+
+
+
+> summary(mVTdthEXT <- felm(log(votes+1) ~ extreme*log(deathsSum+1) + log(totVotes+1) | stcd | 0 | stcd,toAnal %>% filter(votes != 0)))
+
+Call:
+   felm(formula = log(votes + 1) ~ extreme * log(deathsSum + 1) +      log(totVotes + 1) | stcd | 0 | stcd, data = toAnal %>% filter(votes !=      0)) 
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-3.0157 -0.6971 -0.0295  0.6740  3.9779 
+
+Coefficients:
+                           Estimate Cluster s.e. t value Pr(>|t|)    
+extreme                     1.61449      0.13501  11.958   <2e-16 ***
+log(deathsSum + 1)         -0.06026      0.46799  -0.129   0.8976    
+log(totVotes + 1)           0.50060      0.03644  13.739   <2e-16 ***
+extreme:log(deathsSum + 1) -0.06341      0.03498  -1.812   0.0708 .  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 1.157 on 1301 degrees of freedom
+Multiple R-squared(full model): 0.4257   Adjusted R-squared: 0.2808 
+Multiple R-squared(proj model): 0.144   Adjusted R-squared: -0.07181 
+F-statistic(full model, *iid*): 2.94 on 328 and 1301 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 130.7 on 4 and 324 DF, p-value: < 2.2e-16 
+
+
+
+> summary(mVTdthJST <- felm(log(votes+1) ~ justice*log(deathsSum+1) + log(totVotes+1) | stcd | 0 | stcd,toAnal %>% filter(votes != 0)))
+
+Call:
+   felm(formula = log(votes + 1) ~ justice * log(deathsSum + 1) +      log(totVotes + 1) | stcd | 0 | stcd, data = toAnal %>% filter(votes !=      0)) 
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-3.0754 -0.7185 -0.0204  0.6986  3.9666 
+
+Coefficients:
+                           Estimate Cluster s.e. t value Pr(>|t|)    
+justice                     1.47152      0.20223   7.276 2.61e-12 ***
+log(deathsSum + 1)          0.07119      0.47470   0.150    0.881    
+log(totVotes + 1)           0.50537      0.03685  13.715  < 2e-16 ***
+justice:log(deathsSum + 1)  0.07222      0.08806   0.820    0.413    
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 1.18 on 1301 degrees of freedom
+Multiple R-squared(full model): 0.4034   Adjusted R-squared: 0.253 
+Multiple R-squared(proj model): 0.1108   Adjusted R-squared: -0.1134 
+F-statistic(full model, *iid*):2.682 on 328 and 1301 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 108.5 on 4 and 324 DF, p-value: < 2.2e-16 
+
+
+
+> summary(mVTdthTEA <- felm(log(votes+1) ~ tea*log(deathsSum+1) + log(totVotes+1) | stcd | 0 | stcd,toAnal %>% filter(votes != 0)))
+
+Call:
+   felm(formula = log(votes + 1) ~ tea * log(deathsSum + 1) + log(totVotes +      1) | stcd | 0 | stcd, data = toAnal %>% filter(votes != 0)) 
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-3.0156 -0.6945 -0.0234  0.6833  3.9618 
+
+Coefficients:
+                       Estimate Cluster s.e. t value Pr(>|t|)    
+tea                     1.65222      0.14771  11.186  < 2e-16 ***
+log(deathsSum + 1)      0.04845      0.51182   0.095  0.92465    
+log(totVotes + 1)       0.50744      0.03652  13.894  < 2e-16 ***
+tea:log(deathsSum + 1) -0.08968      0.03442  -2.606  0.00959 ** 
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 1.162 on 1301 degrees of freedom
+Multiple R-squared(full model): 0.4206   Adjusted R-squared: 0.2746 
+Multiple R-squared(proj model): 0.1365   Adjusted R-squared: -0.08117 
+F-statistic(full model, *iid*): 2.88 on 328 and 1301 DF, p-value: < 2.2e-16 
+F-statistic(proj model):   113 on 4 and 324 DF, p-value: < 2.2e-16 
+
+
+
+> regs <- list()
+
+> for(m in objects(pattern = '^mVScase')) {
++   regs[[m]] <- get(m)
++   rownames(regs[[m]]$coefficients) <- rownames(regs[[m]]$beta) <- gsub(':',' X ',
++                                                                        gsub('tea|justice|extreme','Anti-Est.',
++                                         gsub('log\\(deathsSum \\+ 1\\)','Deaths (ln)',
++                                              gsub('log\\(casesSum \\+ 1\\)','Cases (ln)',
++                                                   gsub('log\\(totVotes \\+ 1\\)','Total Votes (ln)',rownames(regs[[m]]$coefficients))))))
++ }
+
+> stargazer(regs,keep.stat = c('n','rsq'),
++           star.char = c('\\dag','*','**','***'),
++           star.cutoffs = c(.1,.05,.01,.001),
++           add.lines = list(c('District FE','Y','Y','Y','Y')), out = '../Tables/table3.tex')
+
+% Table created by stargazer v.5.2.2 by Marek Hlavac, Harvard University. E-mail: hlavac at fas.harvard.edu
+% Date and time: Thu, Jun 17, 2021 - 12:52:32 AM
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{3}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-4} 
+\\[-1.8ex] & \multicolumn{3}{c}{voteSh} \\ 
+\\[-1.8ex] & (1) & (2) & (3)\\ 
+\hline \\[-1.8ex] 
+ Anti-Est. & 0.342$^{***}$ & 0.134$^{**}$ & 0.364$^{***}$ \\ 
+  & (0.043) & (0.050) & (0.043) \\ 
+  & & & \\ 
+ Cases (ln) & $-$0.044 & $-$0.014 & $-$0.031 \\ 
+  & (0.150) & (0.151) & (0.151) \\ 
+  & & & \\ 
+ Anti-Est. X Cases (ln) & $-$0.016$^{**}$ & 0.014 & $-$0.020$^{**}$ \\ 
+  & (0.006) & (0.012) & (0.006) \\ 
+  & & & \\ 
+\hline \\[-1.8ex] 
+District FE & Y & Y & Y \\ 
+Observations & 2,019 & 2,019 & 2,019 \\ 
+R$^{2}$ & 0.516 & 0.506 & 0.515 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{3}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+> # SI Figure 18
+> toplot <- toAnal %>%
++   filter(date < as.Date('2020-11-01'),
++          votes > 0)
+
+> toplot$lab <- NA
+
+> for(d in unique(toplot$date)) {
++   toplot$lab[which(toplot$date == d)] <- paste(unique(toplot$stab[which(toplot$date == d)]),collapse = '\n')
++ }
+
+> p1 <- toplot %>%
++   ggplot(aes(x = date,y = voteSh,color = factor(extreme),size = casesSum,weight = log(casesSum+1),
++              alpha = factor(extreme),
++              label = lab)) + 
++   geom_jitter(width = 0) + 
++   geom_smooth(method = 'lm') + 
++   geom_text(data = toplot %>%
++               group_by(date) %>%
++               slice(1) %>%
++               filter(!stab %in% c('HI','TN')) %>%
++               ungroup() %>%
++               mutate(voteSh = 1.01,
++                      date = date - 3),
++             size = 2.5,hjust = 0,vjust = 0,color = 'black',alpha = .8) + 
++   theme_ridges() + 
++   scale_color_manual(name = 'Type',values = c(`0` = 'grey60',`1` = 'black'),label = c('Mainstream','Extreme')) + 
++   scale_alpha_manual(guide = F,values = c(`0` = .15,`1` = .6)) + 
++   scale_size_continuous(guide = F) + 
++   xlab('Date') + ylab('Vote Share') + 
++   scale_y_continuous(breaks = seq(0,1,by = .25),limits = c(0,1.25)) +
++   theme(legend.position = 'bottom')
+
+> p2 <- toplot %>%
++   ggplot(aes(x = log(casesSum+1),y = voteSh,color = factor(extreme))) + 
++   geom_jitter(alpha = .2,width = .2) + 
++   geom_smooth(method = 'lm') + 
++   theme_ridges() + 
++   scale_color_manual(name = 'Type',values = c(`0` = 'grey60',`1` = 'black'),label = c('Mainstream','Extreme')) + 
++   scale_alpha_manual(guide = F,values = c(`0` = .15,`1` = .6)) + 
++   scale_size_continuous(guide = F) + 
++   xlab('Logged Cases') + ylab('Vote Share') + 
++   scale_y_continuous(breaks = seq(0,1,by = .25),limits = c(0,1.25)) +
++   theme(legend.position = 'bottom')
+
+> pdf('../Figures/SI_figure18.pdf',width = 12,height = 8)
+
+> grid.arrange(p1,p2,ncol = 2)
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+
+> dev.off()
+null device 
+          1 

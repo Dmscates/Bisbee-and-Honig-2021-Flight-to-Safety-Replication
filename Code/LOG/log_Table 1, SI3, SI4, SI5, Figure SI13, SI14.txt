@@ -1,0 +1,1104 @@
+
+> # File name: table1_SItable3_SItable5_SItable4_SIfigure13_SIfigure14.R
+> # In: 
+> #   - replication_data.RData
+> # Out: 
+> #   - /Tables/table1.tex
+> #   - /Tables/SI-table3.tex
+> #   - /Figures/SI_figure13.pdf
+> #   - /Tables/SI-table4.tex
+> #   - /Tables/SI-table5.tex
+> #   - /Figures/SI_figure14.pdf
+> 
+> require(lme4)
+Loading required package: lme4
+Loading required package: Matrix
+
+> require(lfe)
+Loading required package: lfe
+
+> require(MatchIt)
+Loading required package: MatchIt
+
+> require(WeightIt)
+Loading required package: WeightIt
+
+> require(tjbal)
+Loading required package: tjbal
+## Syntax has changed since v.0.3.0.
+
+## See http://bit.ly/tjbal4r for more info.
+## Comments and suggestions -> yiqingxu@stanford.edu.
+
+
+> require(optmatch)
+Loading required package: optmatch
+Loading required package: survival
+The optmatch package has an academic license. Enter relaxinfo() for more information.
+
+> require(stargazer)
+Loading required package: stargazer
+
+Please cite as: 
+
+ Hlavac, Marek (2018). stargazer: Well-Formatted Regression and Summary Statistics Tables.
+ R package version 5.2.2. https://CRAN.R-project.org/package=stargazer 
+
+
+> require(cobalt)
+Loading required package: cobalt
+ cobalt (Version 4.3.1, Build Date: 2021-03-30 09:50:18 UTC)
+
+Attaching package: ‘cobalt’
+
+The following object is masked from ‘package:MatchIt’:
+
+    lalonde
+
+
+> require(tidyverse)
+Loading required package: tidyverse
+-- Attaching packages ------------------------------------------------------------------------------------------- tidyverse 1.3.0 --
+v ggplot2 3.3.2     v purrr   0.3.4
+v tibble  3.0.4     v dplyr   1.0.2
+v tidyr   1.1.2     v stringr 1.4.0
+v readr   1.4.0     v forcats 0.5.0
+-- Conflicts ---------------------------------------------------------------------------------------------- tidyverse_conflicts() --
+x tidyr::expand() masks Matrix::expand()
+x dplyr::filter() masks stats::filter()
+x dplyr::lag()    masks stats::lag()
+x tidyr::pack()   masks Matrix::pack()
+x tidyr::unpack() masks Matrix::unpack()
+
+> rm(list = ls())
+
+> gc()
+          used  (Mb) gc trigger  (Mb) max used  (Mb)
+Ncells 2866862 153.2    5356451 286.1  4137514 221.0
+Vcells 5329963  40.7   10146329  77.5  7354597  56.2
+
+> ####################################################################################################################### Loading data
+> load('../Data/replication_data.RData')
+
+> ####################################################################################################################### Loading functions
+> source('./helper_functions.R')
+
+> ####################################################################################################################### Preparing variables
+> Y <- c('pct_sanders16',paste0(c("pct_","VAP_","pcttw_"),"sanders"))
+
+> D <- unlist(lapply(c("sc_","ln_"),function(x) paste0(x,paste0(c("county_","DMA_","state_"),"cases"))))
+
+> FE <- c("0","DMA_CODE","date")
+
+> covariates <- c("sc_CTY_LTHS","sc_CTY_CollUp",
++                 "sc_CTY_LT30yo","sc_CTY_60Up",
++                 "sc_CTY_Below_poverty_level_AGE_18_64","sc_CTY_Female_hher_no_husbandhh",
++                 "sc_CTY_Unem_rate_pop_16_over","sc_CTY_Labor_Force_Part_Rate_pop_16_over",
++                 "sc_CTY_Manufactur","sc_CTY_Md_inc_hhs",
++                 "sc_CTY_POPPCT_RURAL","sc_CTY_Speak_only_English","sc_CTY_White","sc_CTY_Black_or_African_American",
++                 "ln_CTY_tot_pop","sc_turnout_pct_20",'caucus_switch','caucus')
+
+> # Function for generating matched data + weighted data
+> wgtMatchFun <- function(dat,formMatch,formWgt,matchMethod = 'nearest',wgtMethod = 'cbps') {
++   m.out <- matchit(formula = formula(formMatch),
++                    data = dat,
++                    method = matchMethod,
++                    distance = "mahalanobis")
++   
++   m.data <- match.data(m.out)
++   W.out <- weightit(formula = formula(formWgt),
++                     data = dat, 
++                     estimand = "ATT", 
++                     method = wgtMethod)
++   
++   # Balance tables
++   balt.pre <- bal.tab(formula(formWgt),
++                       data = dat, 
++                       estimand = "ATT",
++                       m.threshold = .05)
++   
++   balt.post <- bal.tab(W.out, m.threshold = .05, disp.v.ratio = TRUE)
++   unm <- data.frame(Covs = gsub('_$','',rownames(balt.pre$Balance)),
++                     balt.pre$Balance %>% 
++                       mutate(Diff_Unm = round(Diff.Un,2),
++                              Bal_Test_Unm = M.Threshold.Un)) %>%
++     select(Covs,Diff_Unm,Bal_Test_Unm)
++   
++   match <- data.frame(Covs = rownames(balt.post$Balance),
++                       balt.post$Balance %>% mutate(Diff_Match = round(Diff.Adj,2),
++                                                    Bal_Test_Match = M.Threshold)) %>%
++     select(Covs,Diff_Match,Bal_Test_Match)
++   
++   
++   balTab <- match %>% left_join(unm) %>% select(Covs,Diff_Unm,Bal_Test_Unm,Diff_Match,Bal_Test_Match)
++   balPlot <- qqprep(x = m.out)
++   
++  return(list(balTab = balTab,
++              m.data = m.data,
++              W.out = W.out,
++              dat = dat,
++              balPlot = balPlot))
++ }
+
+> set.seed(123)
+
+> finalDat$treatBin <- ifelse(finalDat$DMA_cases > 1,1,0)
+
+> # Full Sample Regressions: Nearest neighbor + CBPS
+> summary(mFullRaw <- felm(as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",
++                          paste(c(covariates,"pcttw_sanders16"),collapse = " + "),
++                          " | DMA_CODE | 0 | DMA_CODE")),
++                          finalDat))
+
+Call:
+   felm(formula = as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",      paste(c(covariates, "pcttw_sanders16"), collapse = " + "),      " | DMA_CODE | 0 | DMA_CODE")), data = finalDat) 
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-2.1994 -0.1729 -0.0068  0.1670  4.4739 
+
+Coefficients:
+                                          Estimate Cluster s.e. t value Pr(>|t|)    
+treatBin                                 -1.320852     0.551965  -2.393 0.017870 *  
+sc_CTY_LTHS                              -0.043968     0.048412  -0.908 0.365129    
+sc_CTY_CollUp                             0.003195     0.041363   0.077 0.938524    
+sc_CTY_LT30yo                            -0.020021     0.044397  -0.451 0.652637    
+sc_CTY_60Up                              -0.166603     0.046166  -3.609 0.000411 ***
+sc_CTY_Below_poverty_level_AGE_18_64      0.027008     0.027376   0.987 0.325350    
+sc_CTY_Female_hher_no_husbandhh          -0.021728     0.032752  -0.663 0.508014    
+sc_CTY_Unem_rate_pop_16_over             -0.018545     0.023263  -0.797 0.426530    
+sc_CTY_Labor_Force_Part_Rate_pop_16_over  0.036909     0.036109   1.022 0.308243    
+sc_CTY_Manufactur                        -0.045122     0.024432  -1.847 0.066621 .  
+sc_CTY_Md_inc_hhs                        -0.151021     0.046174  -3.271 0.001314 ** 
+sc_CTY_POPPCT_RURAL                      -0.023314     0.019935  -1.169 0.243949    
+sc_CTY_Speak_only_English                -0.193824     0.041862  -4.630 7.52e-06 ***
+sc_CTY_White                              0.059224     0.047556   1.245 0.214820    
+sc_CTY_Black_or_African_American         -0.106025     0.051309  -2.066 0.040403 *  
+ln_CTY_tot_pop                            0.030643     0.025408   1.206 0.229584    
+sc_turnout_pct_20                         0.174781     0.026121   6.691 3.53e-10 ***
+caucus_switch                             0.628245     0.958513   0.655 0.513128    
+caucus                                    1.227019     0.221081   5.550 1.16e-07 ***
+pcttw_sanders16                           0.026846     0.003977   6.750 2.58e-10 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.4336 on 1701 degrees of freedom
+  (119 observations deleted due to missingness)
+Multiple R-squared(full model):  0.83   Adjusted R-squared: 0.812 
+Multiple R-squared(proj model): 0.4501   Adjusted R-squared: 0.3919 
+F-statistic(full model, *iid*):46.13 on 180 and 1701 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 38.13 on 20 and 160 DF, p-value: < 2.2e-16 
+
+
+
+> foranal.weight <- finalDat %>% 
++   select(pcttw_sanders,DMA_cases,treatBin,DMA_CODE,date,stab,covariates,pcttw_sanders16) %>% 
++   filter(complete.cases(.))
+Note: Using an external vector in selections is ambiguous.
+i Use `all_of(covariates)` instead of `covariates` to silence this message.
+i See <https://tidyselect.r-lib.org/reference/faq-external-vector.html>.
+This message is displayed once per session.
+
+> fullPrepped <- wgtMatchFun(dat = foranal.weight,
++                            formMatch = paste0('treatBin ~ ',paste(covariates,collapse = " + ")),
++                            formWgt = paste0('treatBin ~ ',paste(covariates,collapse = " + ")),
++                            matchMethod = 'nearest',
++                            wgtMethod = 'cbps')
+Joining, by = "Covs"
+
+> summary(mFullMatch <- felm(as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",
++                                         paste(c(covariates,"pcttw_sanders16"),collapse = " + "),
++                                         " | DMA_CODE | 0 | DMA_CODE")),
++                            fullPrepped$m.data,weights = fullPrepped$m.data$weights))
+
+Call:
+   felm(formula = as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",      paste(c(covariates, "pcttw_sanders16"), collapse = " + "),      " | DMA_CODE | 0 | DMA_CODE")), data = fullPrepped$m.data,      weights = fullPrepped$m.data$weights) 
+
+Weighted Residuals:
+    Min      1Q  Median      3Q     Max 
+-1.2610 -0.1545  0.0000  0.1434  2.6528 
+
+Coefficients:
+                                          Estimate Cluster s.e. t value Pr(>|t|)    
+treatBin                                 -1.063590     0.476627  -2.231 0.027348 *  
+sc_CTY_LTHS                               0.023456     0.093279   0.251 0.801855    
+sc_CTY_CollUp                             0.125930     0.073893   1.704 0.090709 .  
+sc_CTY_LT30yo                             0.002727     0.061664   0.044 0.964795    
+sc_CTY_60Up                              -0.150184     0.061131  -2.457 0.015329 *  
+sc_CTY_Below_poverty_level_AGE_18_64      0.008470     0.062756   0.135 0.892849    
+sc_CTY_Female_hher_no_husbandhh           0.064459     0.037861   1.703 0.091033 .  
+sc_CTY_Unem_rate_pop_16_over             -0.083520     0.038041  -2.196 0.029887 *  
+sc_CTY_Labor_Force_Part_Rate_pop_16_over -0.036944     0.051631  -0.716 0.475545    
+sc_CTY_Manufactur                        -0.049962     0.049723  -1.005 0.316847    
+sc_CTY_Md_inc_hhs                        -0.225265     0.077382  -2.911 0.004235 ** 
+sc_CTY_POPPCT_RURAL                       0.030559     0.050434   0.606 0.545617    
+sc_CTY_Speak_only_English                -0.188384     0.054730  -3.442 0.000775 ***
+sc_CTY_White                             -0.020030     0.055690  -0.360 0.719668    
+sc_CTY_Black_or_African_American         -0.266033     0.092642  -2.872 0.004765 ** 
+ln_CTY_tot_pop                            0.057881     0.030739   1.883 0.061922 .  
+sc_turnout_pct_20                         0.178726     0.055824   3.202 0.001715 ** 
+caucus_switch                             0.897259     0.396665   2.262 0.025344 *  
+caucus                                    0.337268     0.469493   0.718 0.473811    
+pcttw_sanders16                           0.030054     0.006256   4.804 4.19e-06 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.3698 on 514 degrees of freedom
+Multiple R-squared(full model): 0.8943   Adjusted R-squared: 0.8633 
+Multiple R-squared(proj model): 0.6107   Adjusted R-squared: 0.4963 
+F-statistic(full model, *iid*): 28.8 on 151 and 514 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 71.26 on 20 and 131 DF, p-value: < 2.2e-16 
+
+
+
+> summary(mFullWgt <- felm(as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",
++                                              paste(c(covariates,"pcttw_sanders16"),collapse = " + "),
++                                            " | DMA_CODE | 0 | DMA_CODE")),
++                          fullPrepped$dat,weights = fullPrepped$W.out$weights))
+
+Call:
+   felm(formula = as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",      paste(c(covariates, "pcttw_sanders16"), collapse = " + "),      " | DMA_CODE | 0 | DMA_CODE")), data = fullPrepped$dat, weights = fullPrepped$W.out$weights) 
+
+Weighted Residuals:
+     Min       1Q   Median       3Q      Max 
+-1.31696 -0.06759 -0.00408  0.05047  2.36268 
+
+Coefficients:
+                                          Estimate Cluster s.e. t value Pr(>|t|)    
+treatBin                                 -1.348120     0.380413  -3.544 0.000517 ***
+sc_CTY_LTHS                               0.027793     0.101122   0.275 0.783790    
+sc_CTY_CollUp                             0.104754     0.056210   1.864 0.064209 .  
+sc_CTY_LT30yo                            -0.034091     0.041074  -0.830 0.407778    
+sc_CTY_60Up                              -0.170549     0.043999  -3.876 0.000155 ***
+sc_CTY_Below_poverty_level_AGE_18_64      0.009710     0.048335   0.201 0.841044    
+sc_CTY_Female_hher_no_husbandhh           0.026604     0.033875   0.785 0.433400    
+sc_CTY_Unem_rate_pop_16_over             -0.038070     0.040396  -0.942 0.347400    
+sc_CTY_Labor_Force_Part_Rate_pop_16_over -0.026910     0.035327  -0.762 0.447336    
+sc_CTY_Manufactur                        -0.039014     0.037764  -1.033 0.303113    
+sc_CTY_Md_inc_hhs                        -0.176091     0.061127  -2.881 0.004512 ** 
+sc_CTY_POPPCT_RURAL                       0.014369     0.042863   0.335 0.737896    
+sc_CTY_Speak_only_English                -0.172024     0.066666  -2.580 0.010768 *  
+sc_CTY_White                              0.031009     0.051986   0.596 0.551696    
+sc_CTY_Black_or_African_American         -0.121726     0.083032  -1.466 0.144607    
+ln_CTY_tot_pop                            0.051247     0.023185   2.210 0.028503 *  
+sc_turnout_pct_20                         0.136736     0.038294   3.571 0.000470 ***
+caucus_switch                             0.873844     0.557168   1.568 0.118771    
+caucus                                    0.764378     0.417448   1.831 0.068950 .  
+pcttw_sanders16                           0.031898     0.005702   5.594 9.38e-08 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.2075 on 1701 degrees of freedom
+Multiple R-squared(full model): 0.8832   Adjusted R-squared: 0.8709 
+Multiple R-squared(proj model): 0.5981   Adjusted R-squared: 0.5556 
+F-statistic(full model, *iid*):71.47 on 180 and 1701 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 76.81 on 20 and 160 DF, p-value: < 2.2e-16 
+
+
+
+> # March + April Regressions
+> foranal.weight <- finalDat %>% 
++   select(pcttw_sanders,DMA_cases,treatBin,
++          DMA_CODE,date,stab,covariates,
++          pcttw_sanders16) %>% 
++   filter(complete.cases(.),
++          date >= as.Date('2020-03-01'))
+
+> covariates <- covariates[-which(covariates == 'caucus')]
+
+> marPrepped <- wgtMatchFun(dat = foranal.weight,
++                           formMatch = paste0('treatBin ~ ',paste(covariates,collapse = " + ")),
++                           formWgt = paste0('treatBin ~ ',paste(covariates,collapse = " + ")),
++                           matchMethod = 'nearest',
++                           wgtMethod = 'cbps')
+Joining, by = "Covs"
+
+> summary(mMarRaw <- felm(as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",
++                                            paste(c(covariates,"pcttw_sanders16"),collapse = " + ")," | DMA_CODE | 0 | DMA_CODE")),
++                          finalDat %>% filter(date >= as.Date("2020-03-01"))))
+
+Call:
+   felm(formula = as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",      paste(c(covariates, "pcttw_sanders16"), collapse = " + "),      " | DMA_CODE | 0 | DMA_CODE")), data = finalDat %>% filter(date >=      as.Date("2020-03-01"))) 
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-1.9384 -0.1796 -0.0088  0.1721  4.8989 
+
+Coefficients:
+                                          Estimate Cluster s.e. t value Pr(>|t|)    
+treatBin                                 -0.884820     0.381652  -2.318 0.021788 *  
+sc_CTY_LTHS                              -0.060650     0.052434  -1.157 0.249252    
+sc_CTY_CollUp                             0.000348     0.039481   0.009 0.992979    
+sc_CTY_LT30yo                            -0.055299     0.034091  -1.622 0.106900    
+sc_CTY_60Up                              -0.216949     0.043186  -5.024 1.43e-06 ***
+sc_CTY_Below_poverty_level_AGE_18_64      0.038815     0.031622   1.227 0.221582    
+sc_CTY_Female_hher_no_husbandhh          -0.034732     0.036129  -0.961 0.337951    
+sc_CTY_Unem_rate_pop_16_over             -0.026059     0.027211  -0.958 0.339777    
+sc_CTY_Labor_Force_Part_Rate_pop_16_over  0.049931     0.040520   1.232 0.219794    
+sc_CTY_Manufactur                        -0.055029     0.021768  -2.528 0.012516 *  
+sc_CTY_Md_inc_hhs                        -0.190124     0.053280  -3.568 0.000484 ***
+sc_CTY_POPPCT_RURAL                      -0.014436     0.018930  -0.763 0.446904    
+sc_CTY_Speak_only_English                -0.216796     0.043580  -4.975 1.78e-06 ***
+sc_CTY_White                              0.067938     0.052339   1.298 0.196277    
+sc_CTY_Black_or_African_American         -0.135968     0.059418  -2.288 0.023523 *  
+ln_CTY_tot_pop                            0.038739     0.028164   1.376 0.171037    
+sc_turnout_pct_20                         0.197432     0.026283   7.512 4.98e-12 ***
+caucus_switch                             0.205448     0.771211   0.266 0.790302    
+pcttw_sanders16                           0.026465     0.004123   6.419 1.73e-09 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.3937 on 1541 degrees of freedom
+  (104 observations deleted due to missingness)
+Multiple R-squared(full model): 0.8602   Adjusted R-squared: 0.845 
+Multiple R-squared(proj model): 0.5072   Adjusted R-squared: 0.4535 
+F-statistic(full model, *iid*):56.46 on 168 and 1541 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 73.17 on 19 and 149 DF, p-value: < 2.2e-16 
+
+
+
+> summary(mMarMatch <- felm(as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",
++                                              paste(c(covariates,"pcttw_sanders16"),collapse = " + ")," | DMA_CODE | 0 | DMA_CODE")),
++                           marPrepped$m.data,weights = marPrepped$m.data$weights))
+
+Call:
+   felm(formula = as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",      paste(c(covariates, "pcttw_sanders16"), collapse = " + "),      " | DMA_CODE | 0 | DMA_CODE")), data = marPrepped$m.data,      weights = marPrepped$m.data$weights) 
+
+Weighted Residuals:
+    Min      1Q  Median      3Q     Max 
+-1.7773 -0.1461  0.0000  0.1444  2.8848 
+
+Coefficients:
+                                          Estimate Cluster s.e. t value Pr(>|t|)    
+treatBin                                 -0.569135     0.200271  -2.842 0.005222 ** 
+sc_CTY_LTHS                               0.046644     0.079759   0.585 0.559701    
+sc_CTY_CollUp                             0.161668     0.077154   2.095 0.038105 *  
+sc_CTY_LT30yo                            -0.063648     0.050051  -1.272 0.205804    
+sc_CTY_60Up                              -0.190579     0.056049  -3.400 0.000898 ***
+sc_CTY_Below_poverty_level_AGE_18_64     -0.020688     0.054170  -0.382 0.703156    
+sc_CTY_Female_hher_no_husbandhh           0.077465     0.039491   1.962 0.051982 .  
+sc_CTY_Unem_rate_pop_16_over             -0.057096     0.045118  -1.265 0.207994    
+sc_CTY_Labor_Force_Part_Rate_pop_16_over -0.005580     0.049687  -0.112 0.910756    
+sc_CTY_Manufactur                        -0.046685     0.042957  -1.087 0.279173    
+sc_CTY_Md_inc_hhs                        -0.284941     0.065894  -4.324 3.05e-05 ***
+sc_CTY_POPPCT_RURAL                       0.031778     0.052820   0.602 0.548483    
+sc_CTY_Speak_only_English                -0.196190     0.047992  -4.088 7.63e-05 ***
+sc_CTY_White                             -0.056942     0.057627  -0.988 0.324963    
+sc_CTY_Black_or_African_American         -0.309045     0.085650  -3.608 0.000441 ***
+ln_CTY_tot_pop                            0.068294     0.034596   1.974 0.050529 .  
+sc_turnout_pct_20                         0.225466     0.052369   4.305 3.29e-05 ***
+caucus_switch                             0.729769     0.585790   1.246 0.215119    
+pcttw_sanders16                           0.033347     0.005995   5.563 1.49e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.3584 on 518 degrees of freedom
+Multiple R-squared(full model): 0.8999   Adjusted R-squared: 0.8715 
+Multiple R-squared(proj model): 0.6339   Adjusted R-squared: 0.5299 
+F-statistic(full model, *iid*):31.68 on 147 and 518 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 93.89 on 19 and 128 DF, p-value: < 2.2e-16 
+
+
+
+> summary(mMarWgt <- felm(as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",
++                                            paste(c(covariates,"pcttw_sanders16"),collapse = " + ")," | DMA_CODE | 0 | DMA_CODE")),
++                         marPrepped$dat,weights = marPrepped$W.out$weights))
+
+Call:
+   felm(formula = as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",      paste(c(covariates, "pcttw_sanders16"), collapse = " + "),      " | DMA_CODE | 0 | DMA_CODE")), data = marPrepped$dat, weights = marPrepped$W.out$weights) 
+
+Weighted Residuals:
+     Min       1Q   Median       3Q      Max 
+-1.51711 -0.07268 -0.00494  0.05265  2.65846 
+
+Coefficients:
+                                          Estimate Cluster s.e. t value Pr(>|t|)    
+treatBin                                 -0.884875     0.324962  -2.723  0.00724 ** 
+sc_CTY_LTHS                               0.030490     0.113679   0.268  0.78891    
+sc_CTY_CollUp                             0.094007     0.064759   1.452  0.14871    
+sc_CTY_LT30yo                            -0.051315     0.041473  -1.237  0.21792    
+sc_CTY_60Up                              -0.205426     0.046122  -4.454 1.64e-05 ***
+sc_CTY_Below_poverty_level_AGE_18_64      0.027680     0.054591   0.507  0.61288    
+sc_CTY_Female_hher_no_husbandhh           0.003402     0.036663   0.093  0.92620    
+sc_CTY_Unem_rate_pop_16_over             -0.037532     0.047859  -0.784  0.43415    
+sc_CTY_Labor_Force_Part_Rate_pop_16_over -0.019205     0.037924  -0.506  0.61332    
+sc_CTY_Manufactur                        -0.059635     0.041579  -1.434  0.15360    
+sc_CTY_Md_inc_hhs                        -0.185564     0.070167  -2.645  0.00906 ** 
+sc_CTY_POPPCT_RURAL                       0.025825     0.046570   0.555  0.58004    
+sc_CTY_Speak_only_English                -0.186279     0.074276  -2.508  0.01322 *  
+sc_CTY_White                              0.031969     0.060336   0.530  0.59700    
+sc_CTY_Black_or_African_American         -0.121880     0.090096  -1.353  0.17817    
+ln_CTY_tot_pop                            0.062744     0.026938   2.329  0.02119 *  
+sc_turnout_pct_20                         0.168777     0.040542   4.163 5.29e-05 ***
+caucus_switch                             0.764142     0.465068   1.643  0.10248    
+pcttw_sanders16                           0.033897     0.006169   5.494 1.65e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.209 on 1541 degrees of freedom
+Multiple R-squared(full model): 0.8978   Adjusted R-squared: 0.8867 
+Multiple R-squared(proj model): 0.6371   Adjusted R-squared: 0.5976 
+F-statistic(full model, *iid*):80.59 on 168 and 1541 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 91.27 on 19 and 149 DF, p-value: < 2.2e-16 
+
+
+
+> # Table 1
+> covars <- rownames(mFullRaw$coefficients)
+
+> labs <- gsub('Treatbin','Exposure Dummy',gsub('Turnout pct 20','Turnout 2020',gsub('Pcttw sanders16','Sanders 2016',gsub('Caucus$','Caucus dummy',gsub("Lths","LTHS",gsub("Collup","Coll. Up",gsub("Md inc HH","Med HH Inc",gsub("Sc ","",gsub(" or african american|band$","",Hmisc::capitalize(trimws(gsub("manufactur","manufacturing",gsub("hher|hhs","HH",gsub("labor force part rate","LFPR",gsub("bachelor s","bachelor's",gsub("age 18 64|pop 16 over|hh$|poppct","",gsub("\\_"," ",gsub("^sc_|^.*cty\\_","",tolower(covars)))))))))))))))))))
+
+> prepTable <- function(tab,keeps = c('Exposure Dummy','Turnout 2020','Sanders 2016',
++                                     'Caucus dummy','Caucus switch'),tops = 1:14,bottoms = (length(tab) - 8):length(tab)) {
++   inds <- NULL
++   for(keep in keeps) {
++     tmpInds <- which(grepl(keep,tab))
++     for(i in tmpInds) {
++       inds <- c(inds,i:(i+2))
++     }
++   }
++   inds <- unique(c(tops,inds,bottoms))
++   
++   return(tab[inds])
++ }
+
+> tex <- stargazer(mFullRaw,mFullMatch,mFullWgt,
++           mMarRaw,mMarMatch,mMarWgt,
++           keep.stat = c("n","rsq"),
++           star.cutoffs = c(.1,.05,.01,.001),
++           star.char = c('\\dag','*','**','***'),
++           covariate.labels = labs)
+
+% Table created by stargazer v.5.2.2 by Marek Hlavac, Harvard University. E-mail: hlavac at fas.harvard.edu
+% Date and time: Thu, Jun 17, 2021 - 12:52:23 AM
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lcccccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{6}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-7} 
+\\[-1.8ex] & \multicolumn{6}{c}{paste0("scale(pcttw\_sanders) \textasciitilde treatBin + ", paste(c(covariates, "pcttw\_sanders16"), collapse = " + "), " \textbar  DMA\_CODE \textbar  0 \textbar  DMA\_CODE")} \\ 
+\\[-1.8ex] & (1) & (2) & (3) & (4) & (5) & (6)\\ 
+\hline \\[-1.8ex] 
+ Exposure Dummy & $-$1.321$^{*}$ & $-$1.064$^{*}$ & $-$1.348$^{***}$ & $-$0.885$^{*}$ & $-$0.569$^{**}$ & $-$0.885$^{**}$ \\ 
+  & (0.552) & (0.477) & (0.380) & (0.382) & (0.200) & (0.325) \\ 
+  & & & & & & \\ 
+ LTHS & $-$0.044 & 0.023 & 0.028 & $-$0.061 & 0.047 & 0.030 \\ 
+  & (0.048) & (0.093) & (0.101) & (0.052) & (0.080) & (0.114) \\ 
+  & & & & & & \\ 
+ Coll. Up & 0.003 & 0.126$^{\dag}$ & 0.105$^{\dag}$ & 0.0003 & 0.162$^{*}$ & 0.094 \\ 
+  & (0.041) & (0.074) & (0.056) & (0.039) & (0.077) & (0.065) \\ 
+  & & & & & & \\ 
+ Lt30yo & $-$0.020 & 0.003 & $-$0.034 & $-$0.055 & $-$0.064 & $-$0.051 \\ 
+  & (0.044) & (0.062) & (0.041) & (0.034) & (0.050) & (0.041) \\ 
+  & & & & & & \\ 
+ 60up & $-$0.167$^{***}$ & $-$0.150$^{*}$ & $-$0.171$^{***}$ & $-$0.217$^{***}$ & $-$0.191$^{***}$ & $-$0.205$^{***}$ \\ 
+  & (0.046) & (0.061) & (0.044) & (0.043) & (0.056) & (0.046) \\ 
+  & & & & & & \\ 
+ Below poverty level & 0.027 & 0.008 & 0.010 & 0.039 & $-$0.021 & 0.028 \\ 
+  & (0.027) & (0.063) & (0.048) & (0.032) & (0.054) & (0.055) \\ 
+  & & & & & & \\ 
+ Female HH no hus & $-$0.022 & 0.064$^{\dag}$ & 0.027 & $-$0.035 & 0.077$^{\dag}$ & 0.003 \\ 
+  & (0.033) & (0.038) & (0.034) & (0.036) & (0.039) & (0.037) \\ 
+  & & & & & & \\ 
+ Unem rate & $-$0.019 & $-$0.084$^{*}$ & $-$0.038 & $-$0.026 & $-$0.057 & $-$0.038 \\ 
+  & (0.023) & (0.038) & (0.040) & (0.027) & (0.045) & (0.048) \\ 
+  & & & & & & \\ 
+ LFPR & 0.037 & $-$0.037 & $-$0.027 & 0.050 & $-$0.006 & $-$0.019 \\ 
+  & (0.036) & (0.052) & (0.035) & (0.041) & (0.050) & (0.038) \\ 
+  & & & & & & \\ 
+ Manufacturing & $-$0.045$^{\dag}$ & $-$0.050 & $-$0.039 & $-$0.055$^{*}$ & $-$0.047 & $-$0.060 \\ 
+  & (0.024) & (0.050) & (0.038) & (0.022) & (0.043) & (0.042) \\ 
+  & & & & & & \\ 
+ Med HH Inc & $-$0.151$^{**}$ & $-$0.225$^{**}$ & $-$0.176$^{**}$ & $-$0.190$^{***}$ & $-$0.285$^{***}$ & $-$0.186$^{**}$ \\ 
+  & (0.046) & (0.077) & (0.061) & (0.053) & (0.066) & (0.070) \\ 
+  & & & & & & \\ 
+ Rural & $-$0.023 & 0.031 & 0.014 & $-$0.014 & 0.032 & 0.026 \\ 
+  & (0.020) & (0.050) & (0.043) & (0.019) & (0.053) & (0.047) \\ 
+  & & & & & & \\ 
+ Speak only english & $-$0.194$^{***}$ & $-$0.188$^{***}$ & $-$0.172$^{*}$ & $-$0.217$^{***}$ & $-$0.196$^{***}$ & $-$0.186$^{*}$ \\ 
+  & (0.042) & (0.055) & (0.067) & (0.044) & (0.048) & (0.074) \\ 
+  & & & & & & \\ 
+ White & 0.059 & $-$0.020 & 0.031 & 0.068 & $-$0.057 & 0.032 \\ 
+  & (0.048) & (0.056) & (0.052) & (0.052) & (0.058) & (0.060) \\ 
+  & & & & & & \\ 
+ Black & $-$0.106$^{*}$ & $-$0.266$^{**}$ & $-$0.122 & $-$0.136$^{*}$ & $-$0.309$^{***}$ & $-$0.122 \\ 
+  & (0.051) & (0.093) & (0.083) & (0.059) & (0.086) & (0.090) \\ 
+  & & & & & & \\ 
+ Tot pop & 0.031 & 0.058$^{\dag}$ & 0.051$^{*}$ & 0.039 & 0.068$^{\dag}$ & 0.063$^{*}$ \\ 
+  & (0.025) & (0.031) & (0.023) & (0.028) & (0.035) & (0.027) \\ 
+  & & & & & & \\ 
+ Turnout 2020 & 0.175$^{***}$ & 0.179$^{**}$ & 0.137$^{***}$ & 0.197$^{***}$ & 0.225$^{***}$ & 0.169$^{***}$ \\ 
+  & (0.026) & (0.056) & (0.038) & (0.026) & (0.052) & (0.041) \\ 
+  & & & & & & \\ 
+ Caucus switch & 0.628 & 0.897$^{*}$ & 0.874 & 0.205 & 0.730 & 0.764 \\ 
+  & (0.959) & (0.397) & (0.557) & (0.771) & (0.586) & (0.465) \\ 
+  & & & & & & \\ 
+ Caucus dummy & 1.227$^{***}$ & 0.337 & 0.764$^{\dag}$ &  &  &  \\ 
+  & (0.221) & (0.469) & (0.417) &  &  &  \\ 
+  & & & & & & \\ 
+ Sanders 2016 & 0.027$^{***}$ & 0.030$^{***}$ & 0.032$^{***}$ & 0.026$^{***}$ & 0.033$^{***}$ & 0.034$^{***}$ \\ 
+  & (0.004) & (0.006) & (0.006) & (0.004) & (0.006) & (0.006) \\ 
+  & & & & & & \\ 
+\hline \\[-1.8ex] 
+Observations & 1,882 & 666 & 1,882 & 1,710 & 666 & 1,710 \\ 
+R$^{2}$ & 0.830 & 0.894 & 0.883 & 0.860 & 0.900 & 0.898 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{6}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+> cat(paste(prepTable(tex,keeps = c('Exposure Dummy','Turnout 2020','Sanders 2016',
++                             'Caucus switch','Caucus dummy')),
++           collapse = '\n'),file = '../Tables/table1.tex')
+
+> # SI Table 3
+> stargazer(marPrepped$balTab,summary = F,out = '../Tables/SI-table3.tex')
+
+% Table created by stargazer v.5.2.2 by Marek Hlavac, Harvard University. E-mail: hlavac at fas.harvard.edu
+% Date and time: Thu, Jun 17, 2021 - 12:52:24 AM
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}} cccccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & Covs & Diff\_Unm & Bal\_Test\_Unm & Diff\_Match & Bal\_Test\_Match \\ 
+\hline \\[-1.8ex] 
+1 & prop.score & $$ &  & $0.150$ &  \\ 
+2 & sc\_CTY\_LTHS & $$-$0.600$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+3 & sc\_CTY\_CollUp & $0.590$ & Not Balanced, \textgreater 0.05 & $0.040$ & Balanced, \textless 0.05 \\ 
+4 & sc\_CTY\_LT30yo & $$-$0.190$ & Not Balanced, \textgreater 0.05 & $$-$0.060$ & Not Balanced, \textgreater 0.05 \\ 
+5 & sc\_CTY\_60Up & $0.160$ & Not Balanced, \textgreater 0.05 & $0.070$ & Not Balanced, \textgreater 0.05 \\ 
+6 & sc\_CTY\_Below\_poverty\_level\_AGE\_18\_64 & $$-$0.570$ & Not Balanced, \textgreater 0.05 & $$-$0.020$ & Balanced, \textless 0.05 \\ 
+7 & sc\_CTY\_Female\_hher\_no\_husbandhh & $$-$0.510$ & Not Balanced, \textgreater 0.05 & $$-$0.010$ & Balanced, \textless 0.05 \\ 
+8 & sc\_CTY\_Unem\_rate\_pop\_16\_over & $$-$0.240$ & Not Balanced, \textgreater 0.05 & $0.010$ & Balanced, \textless 0.05 \\ 
+9 & sc\_CTY\_Labor\_Force\_Part\_Rate\_pop\_16\_over & $0.360$ & Not Balanced, \textgreater 0.05 & $$-$0.050$ & Balanced, \textless 0.05 \\ 
+10 & sc\_CTY\_Manufactur & $$-$0.210$ & Not Balanced, \textgreater 0.05 & $$-$0.040$ & Balanced, \textless 0.05 \\ 
+11 & sc\_CTY\_Md\_inc\_hhs & $0.620$ & Not Balanced, \textgreater 0.05 & $0.040$ & Balanced, \textless 0.05 \\ 
+12 & sc\_CTY\_POPPCT\_RURAL & $$-$0.560$ & Not Balanced, \textgreater 0.05 & $$-$0.050$ & Balanced, \textless 0.05 \\ 
+13 & sc\_CTY\_Speak\_only\_English & $$-$0.310$ & Not Balanced, \textgreater 0.05 & $$-$0.050$ & Not Balanced, \textgreater 0.05 \\ 
+14 & sc\_CTY\_White & $0.330$ & Not Balanced, \textgreater 0.05 & $$-$0.050$ & Balanced, \textless 0.05 \\ 
+15 & sc\_CTY\_Black\_or\_African\_American & $$-$1.170$ & Not Balanced, \textgreater 0.05 & $0.020$ & Balanced, \textless 0.05 \\ 
+16 & ln\_CTY\_tot\_pop & $0.510$ & Not Balanced, \textgreater 0.05 & $0.050$ & Not Balanced, \textgreater 0.05 \\ 
+17 & sc\_turnout\_pct\_20 & $0.420$ & Not Balanced, \textgreater 0.05 & $0.030$ & Balanced, \textless 0.05 \\ 
+18 & caucus\_switch & $0.060$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+\hline \\[-1.8ex] 
+\end{tabular} 
+\end{table} 
+
+> # SI Figure 13
+> toplot <- fullPrepped$balPlot$toplot
+
+> # rr <- marPrepped$balPlot$rr
+> 
+> dist2d <- function(x,y) {
++   m <- cbind(c(-1,-1),c(x,y))
++   abs(det(m))/sqrt(sum(c(-1,-1)^2))
++ }
+
+> vdist2d <- Vectorize(dist2d,vectorize.args = c("x","y"))
+
+> toplot$type <- as.character(toplot$type)
+
+> toplot$cov <- as.character(toplot$cov)
+
+> toplot <- toplot %>% bind_rows(toplot %>% group_by(cov) %>% summarise(x = min(x,y),y = min(x,y)),
++                                toplot %>% group_by(cov) %>% summarise(x = max(x,y),y = max(x,y)))
+`summarise()` ungrouping output (override with `.groups` argument)
+`summarise()` ungrouping output (override with `.groups` argument)
+
+> toplot$cov <- Hmisc::capitalize(tolower(trimws(gsub("Manufactur","Manufacturing",gsub("Labor Force Part Rate","LFPR",gsub("hher|hhs","HH",gsub("Bachelor s","Bachelor's",gsub("_"," ",gsub("CTY_|AGE_18_64|pop_16_over|hh$|POPPCT","",toplot$cov)))))))))
+
+> toplot %>% group_by(type,cov) %>%
++   summarise(eucdist = mean(vdist2d(x = x,y= y))) %>%
++   filter(!is.na(type)) -> sum.euc
+`summarise()` regrouping output by 'type' (override with `.groups` argument)
+
+> pdf('../Figures/SI_figure13.pdf',width = 7,height = 7)
+
+> toplot %>%
++   filter(!grepl('caucus',tolower(cov))) %>%
++   ggplot(aes(x = x,y = y,color = factor(type,levels = c("Raw","Matched")),
++              text = paste0(type,"\nEuc Dist = ",round(vdist2d(x = x,y = y),2)))) +
++   geom_point(alpha = .3,size = .5) +
++   geom_abline() +
++   geom_abline(aes(intercept = (rrlb - rrub) * 0.1,slope = 1),linetype = "dashed") +
++   geom_abline(aes(intercept = -(rrlb - rrub) * 0.1,slope = 1),linetype = "dashed") +
++   theme_bw() +
++   xlab("Control") + ylab("Treated") +
++   theme(legend.position = "bottom") +
++   facet_wrap(~cov,scales = "free") +
++   scale_color_discrete("",na.translate = F) +
++   guides(color = guide_legend(override.aes = list(size = 5,alpha = 1)))
+
+> dev.off()
+null device 
+          1 
+
+> # SI Tables 4-5 and Figure 14
+> # Full Sample Regressions: CEM + optweights
+> summary(mFullRaw <- felm(as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",
++                                            paste(c(covariates,"pcttw_sanders16"),collapse = " + "),
++                                            " | DMA_CODE | 0 | DMA_CODE")),
++                          finalDat))
+
+Call:
+   felm(formula = as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",      paste(c(covariates, "pcttw_sanders16"), collapse = " + "),      " | DMA_CODE | 0 | DMA_CODE")), data = finalDat) 
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-2.2203 -0.1845 -0.0104  0.1675  4.4161 
+
+Coefficients:
+                                          Estimate Cluster s.e. t value Pr(>|t|)    
+treatBin                                 -1.068279     0.387427  -2.757 0.006505 ** 
+sc_CTY_LTHS                              -0.038480     0.048598  -0.792 0.429654    
+sc_CTY_CollUp                             0.019477     0.052001   0.375 0.708486    
+sc_CTY_LT30yo                            -0.052201     0.049339  -1.058 0.291647    
+sc_CTY_60Up                              -0.174756     0.048564  -3.598 0.000426 ***
+sc_CTY_Below_poverty_level_AGE_18_64      0.041291     0.029704   1.390 0.166435    
+sc_CTY_Female_hher_no_husbandhh          -0.023065     0.036554  -0.631 0.528955    
+sc_CTY_Unem_rate_pop_16_over             -0.020214     0.023650  -0.855 0.393975    
+sc_CTY_Labor_Force_Part_Rate_pop_16_over  0.056639     0.040223   1.408 0.161030    
+sc_CTY_Manufactur                        -0.040124     0.030876  -1.299 0.195643    
+sc_CTY_Md_inc_hhs                        -0.149038     0.048134  -3.096 0.002314 ** 
+sc_CTY_POPPCT_RURAL                      -0.031020     0.021320  -1.455 0.147631    
+sc_CTY_Speak_only_English                -0.195342     0.041484  -4.709 5.37e-06 ***
+sc_CTY_White                              0.069314     0.050353   1.377 0.170572    
+sc_CTY_Black_or_African_American         -0.082713     0.052320  -1.581 0.115874    
+ln_CTY_tot_pop                            0.024990     0.025452   0.982 0.327662    
+sc_turnout_pct_20                         0.134510     0.034458   3.904 0.000139 ***
+caucus_switch                            -0.024206     0.679194  -0.036 0.971615    
+pcttw_sanders16                           0.026174     0.003674   7.124 3.37e-11 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.4496 on 1702 degrees of freedom
+  (119 observations deleted due to missingness)
+Multiple R-squared(full model): 0.8171   Adjusted R-squared: 0.7979 
+Multiple R-squared(proj model): 0.4085   Adjusted R-squared: 0.3463 
+F-statistic(full model, *iid*):42.47 on 179 and 1702 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 39.18 on 19 and 160 DF, p-value: < 2.2e-16 
+
+
+
+> foranal.weight <- finalDat %>% select(pcttw_sanders,DMA_cases,treatBin,DMA_CODE,date,stab,covariates,pcttw_sanders16) %>% filter(complete.cases(.))
+
+> fullPrepped <- wgtMatchFun(dat = foranal.weight,
++                            formMatch = paste0('treatBin ~ ',paste(covariates[c(4,2,10,12,7,13)],collapse = " + ")),
++                            formWgt = paste0('treatBin ~ ',paste(covariates,collapse = " + ")),
++                            matchMethod = 'cem',
++                            wgtMethod = 'optweight')
+Warning: The argument 'distance' is not used with method = "cem" and will be ignored.
+Joining, by = "Covs"
+
+> summary(mFullMatch <- felm(as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",
++                                              paste(c(covariates,"pcttw_sanders16"),collapse = " + "),
++                                              " | DMA_CODE | 0 | DMA_CODE")),
++                            fullPrepped$m.data,weights = fullPrepped$m.data$weights))
+
+Call:
+   felm(formula = as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",      paste(c(covariates, "pcttw_sanders16"), collapse = " + "),      " | DMA_CODE | 0 | DMA_CODE")), data = fullPrepped$m.data,      weights = fullPrepped$m.data$weights) 
+
+Weighted Residuals:
+     Min       1Q   Median       3Q      Max 
+-2.62967 -0.17141 -0.00178  0.14956  2.25779 
+
+Coefficients:
+                                         Estimate Cluster s.e. t value Pr(>|t|)   
+treatBin                                 -0.48218      0.23034  -2.093   0.0392 * 
+sc_CTY_LTHS                              -0.04039      0.12291  -0.329   0.7432   
+sc_CTY_CollUp                             0.14672      0.20652   0.710   0.4793   
+sc_CTY_LT30yo                            -0.30931      0.16460  -1.879   0.0635 . 
+sc_CTY_60Up                              -0.25712      0.18020  -1.427   0.1572   
+sc_CTY_Below_poverty_level_AGE_18_64      0.08629      0.10364   0.833   0.4073   
+sc_CTY_Female_hher_no_husbandhh          -0.01322      0.07472  -0.177   0.8600   
+sc_CTY_Unem_rate_pop_16_over              0.28497      0.15753   1.809   0.0739 . 
+sc_CTY_Labor_Force_Part_Rate_pop_16_over  0.01175      0.14853   0.079   0.9371   
+sc_CTY_Manufactur                         0.15403      0.08631   1.785   0.0778 . 
+sc_CTY_Md_inc_hhs                         0.05225      0.18865   0.277   0.7824   
+sc_CTY_POPPCT_RURAL                      -0.03934      0.06772  -0.581   0.5628   
+sc_CTY_Speak_only_English                -0.29503      0.23460  -1.258   0.2119   
+sc_CTY_White                             -0.27876      0.22456  -1.241   0.2178   
+sc_CTY_Black_or_African_American         -0.37952      0.37485  -1.012   0.3141   
+ln_CTY_tot_pop                            0.09391      0.06190   1.517   0.1328   
+sc_turnout_pct_20                         0.02043      0.26679   0.077   0.9391   
+caucus_switch                             0.27935      1.13004   0.247   0.8053   
+pcttw_sanders16                           0.05137      0.01586   3.238   0.0017 **
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.5627 on 267 degrees of freedom
+Multiple R-squared(full model): 0.803   Adjusted R-squared: 0.7241 
+Multiple R-squared(proj model): 0.3322   Adjusted R-squared: 0.06453 
+F-statistic(full model, *iid*):10.17 on 107 and 267 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 9.935 on 19 and 88 DF, p-value: 9.938e-15 
+
+
+
+> summary(mFullWgt <- felm(as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",
++                                            paste(c(covariates,"pcttw_sanders16"),collapse = " + "),
++                                            " | DMA_CODE | 0 | DMA_CODE")),
++                          fullPrepped$dat,weights = fullPrepped$W.out$weights))
+
+Call:
+   felm(formula = as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",      paste(c(covariates, "pcttw_sanders16"), collapse = " + "),      " | DMA_CODE | 0 | DMA_CODE")), data = fullPrepped$dat, weights = fullPrepped$W.out$weights) 
+
+Weighted Residuals:
+    Min      1Q  Median      3Q     Max 
+-3.1687 -0.0227  0.0000  0.0001  2.9249 
+
+Coefficients:
+                                          Estimate Cluster s.e. t value Pr(>|t|)    
+treatBin                                 -0.993769     0.338130  -2.939  0.00378 ** 
+sc_CTY_LTHS                              -0.082564     0.112652  -0.733  0.46468    
+sc_CTY_CollUp                             0.070432     0.067167   1.049  0.29594    
+sc_CTY_LT30yo                            -0.044481     0.061899  -0.719  0.47344    
+sc_CTY_60Up                              -0.176309     0.053630  -3.288  0.00124 ** 
+sc_CTY_Below_poverty_level_AGE_18_64      0.042206     0.049815   0.847  0.39812    
+sc_CTY_Female_hher_no_husbandhh           0.054628     0.057297   0.953  0.34182    
+sc_CTY_Unem_rate_pop_16_over             -0.019144     0.040095  -0.477  0.63369    
+sc_CTY_Labor_Force_Part_Rate_pop_16_over -0.017144     0.039156  -0.438  0.66210    
+sc_CTY_Manufactur                         0.005104     0.041691   0.122  0.90272    
+sc_CTY_Md_inc_hhs                        -0.138971     0.065095  -2.135  0.03429 *  
+sc_CTY_POPPCT_RURAL                      -0.029527     0.043015  -0.686  0.49343    
+sc_CTY_Speak_only_English                -0.228640     0.085695  -2.668  0.00841 ** 
+sc_CTY_White                              0.100493     0.044795   2.243  0.02624 *  
+sc_CTY_Black_or_African_American          0.002155     0.076053   0.028  0.97743    
+ln_CTY_tot_pop                            0.005925     0.024336   0.243  0.80797    
+sc_turnout_pct_20                         0.069752     0.063447   1.099  0.27325    
+caucus_switch                             0.692917     0.332091   2.087  0.03852 *  
+pcttw_sanders16                           0.031623     0.005315   5.950 1.64e-08 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.3583 on 1702 degrees of freedom
+Multiple R-squared(full model): 0.8989   Adjusted R-squared: 0.8883 
+Multiple R-squared(proj model): 0.4969   Adjusted R-squared: 0.444 
+F-statistic(full model, *iid*):84.53 on 179 and 1702 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 45.95 on 19 and 160 DF, p-value: < 2.2e-16 
+
+
+
+> # March + April Regressions
+> foranal.weight <- finalDat %>% 
++   select(pcttw_sanders,DMA_cases,treatBin,
++          DMA_CODE,date,stab,covariates,
++          pcttw_sanders16) %>% 
++   filter(complete.cases(.),
++          date >= as.Date('2020-03-01'))
+
+> covs <- covariates[-which(grepl('caucus',covariates))]
+
+> marPrepped <- wgtMatchFun(dat = foranal.weight,
++                           formMatch = paste0('treatBin ~ ',paste(covs[c(4,2,10,12,7,13)],collapse = " + ")), # CEM fails with the full set of covariates. See SI page 13-15 for discussion.
++                           formWgt = paste0('treatBin ~ ',paste(covs,collapse = " + ")),
++                           matchMethod = 'cem',
++                           wgtMethod = 'optweight')
+Warning: The argument 'distance' is not used with method = "cem" and will be ignored.
+Joining, by = "Covs"
+
+> summary(mMarRaw <- felm(as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",
++                                           paste(c(covs,"pcttw_sanders16"),collapse = " + "),
++                                           " | DMA_CODE | 0 | DMA_CODE")),
++                         finalDat %>% filter(date >= as.Date("2020-03-01"))))
+
+Call:
+   felm(formula = as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",      paste(c(covs, "pcttw_sanders16"), collapse = " + "), " | DMA_CODE | 0 | DMA_CODE")),      data = finalDat %>% filter(date >= as.Date("2020-03-01"))) 
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-1.7721 -0.1821 -0.0078  0.1743  4.8926 
+
+Coefficients:
+                                           Estimate Cluster s.e. t value Pr(>|t|)    
+treatBin                                 -0.9432980    0.3252931  -2.900 0.004299 ** 
+sc_CTY_LTHS                              -0.0615563    0.0539050  -1.142 0.255311    
+sc_CTY_CollUp                            -0.0003312    0.0405487  -0.008 0.993494    
+sc_CTY_LT30yo                            -0.0554721    0.0338840  -1.637 0.103716    
+sc_CTY_60Up                              -0.2177190    0.0427584  -5.092 1.06e-06 ***
+sc_CTY_Below_poverty_level_AGE_18_64      0.0373776    0.0306574   1.219 0.224694    
+sc_CTY_Female_hher_no_husbandhh          -0.0341169    0.0372181  -0.917 0.360794    
+sc_CTY_Unem_rate_pop_16_over             -0.0259508    0.0271461  -0.956 0.340636    
+sc_CTY_Labor_Force_Part_Rate_pop_16_over  0.0506902    0.0399382   1.269 0.206343    
+sc_CTY_Manufactur                        -0.0544006    0.0217951  -2.496 0.013650 *  
+sc_CTY_Md_inc_hhs                        -0.1915035    0.0526277  -3.639 0.000377 ***
+sc_CTY_POPPCT_RURAL                      -0.0135105    0.0199810  -0.676 0.499983    
+sc_CTY_Speak_only_English                -0.2169682    0.0442300  -4.905 2.41e-06 ***
+sc_CTY_White                              0.0708307    0.0549544   1.289 0.199430    
+sc_CTY_Black_or_African_American         -0.1349139    0.0603257  -2.236 0.026809 *  
+ln_CTY_tot_pop                            0.0388187    0.0281576   1.379 0.170077    
+sc_turnout_pct_20                         0.2005246    0.0238393   8.412 3.04e-14 ***
+pcttw_sanders16                           0.0264022    0.0041306   6.392 1.99e-09 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.3938 on 1542 degrees of freedom
+  (104 observations deleted due to missingness)
+Multiple R-squared(full model): 0.8601   Adjusted R-squared: 0.8449 
+Multiple R-squared(proj model): 0.5065   Adjusted R-squared: 0.4531 
+F-statistic(full model, *iid*):56.75 on 167 and 1542 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 49.96 on 18 and 149 DF, p-value: < 2.2e-16 
+
+
+
+> summary(mMarMatch <- felm(as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",
++                                             paste(c(covs,"pcttw_sanders16"),collapse = " + "),
++                                             " | DMA_CODE | 0 | DMA_CODE")),
++                           marPrepped$m.data,weights = marPrepped$m.data$weights))
+
+Call:
+   felm(formula = as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",      paste(c(covs, "pcttw_sanders16"), collapse = " + "), " | DMA_CODE | 0 | DMA_CODE")),      data = marPrepped$m.data, weights = marPrepped$m.data$weights) 
+
+Weighted Residuals:
+    Min      1Q  Median      3Q     Max 
+-1.8024 -0.1409  0.0000  0.1503  1.7802 
+
+Coefficients:
+                                          Estimate Cluster s.e. t value Pr(>|t|)    
+treatBin                                 -0.655685     0.296440  -2.212  0.02976 *  
+sc_CTY_LTHS                               0.135214     0.178835   0.756  0.45177    
+sc_CTY_CollUp                             0.158559     0.120935   1.311  0.19348    
+sc_CTY_LT30yo                            -0.372054     0.140296  -2.652  0.00961 ** 
+sc_CTY_60Up                              -0.449993     0.099611  -4.517 2.08e-05 ***
+sc_CTY_Below_poverty_level_AGE_18_64      0.111253     0.106148   1.048  0.29767    
+sc_CTY_Female_hher_no_husbandhh          -0.148963     0.213849  -0.697  0.48803    
+sc_CTY_Unem_rate_pop_16_over              0.094212     0.076854   1.226  0.22376    
+sc_CTY_Labor_Force_Part_Rate_pop_16_over -0.072574     0.153249  -0.474  0.63707    
+sc_CTY_Manufactur                         0.194667     0.072536   2.684  0.00881 ** 
+sc_CTY_Md_inc_hhs                        -0.097450     0.141397  -0.689  0.49265    
+sc_CTY_POPPCT_RURAL                      -0.089238     0.169750  -0.526  0.60051    
+sc_CTY_Speak_only_English                -0.251123     0.226956  -1.106  0.27175    
+sc_CTY_White                             -0.371035     0.210897  -1.759  0.08225 .  
+sc_CTY_Black_or_African_American         -0.644322     0.284764  -2.263  0.02630 *  
+ln_CTY_tot_pop                           -0.012825     0.071903  -0.178  0.85887    
+sc_turnout_pct_20                         0.515402     0.206665   2.494  0.01464 *  
+pcttw_sanders16                           0.043864     0.009722   4.512 2.12e-05 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.3897 on 203 degrees of freedom
+Multiple R-squared(full model): 0.8977   Adjusted R-squared: 0.8473 
+Multiple R-squared(proj model): 0.5067   Adjusted R-squared: 0.2637 
+F-statistic(full model, *iid*):17.82 on 100 and 203 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 31.87 on 18 and 82 DF, p-value: < 2.2e-16 
+
+
+
+> summary(mMarWgt <- felm(as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",
++                                           paste(c(covs,"pcttw_sanders16"),collapse = " + "),
++                                           " | DMA_CODE | 0 | DMA_CODE")),
++                         marPrepped$dat,weights = marPrepped$W.out$weights))
+
+Call:
+   felm(formula = as.formula(paste0("scale(pcttw_sanders) ~ treatBin + ",      paste(c(covs, "pcttw_sanders16"), collapse = " + "), " | DMA_CODE | 0 | DMA_CODE")),      data = marPrepped$dat, weights = marPrepped$W.out$weights) 
+
+Weighted Residuals:
+     Min       1Q   Median       3Q      Max 
+-2.66370 -0.00709 -0.00001  0.00008  2.82977 
+
+Coefficients:
+                                          Estimate Cluster s.e. t value Pr(>|t|)    
+treatBin                                 -0.940401     0.323289  -2.909  0.00418 ** 
+sc_CTY_LTHS                              -0.014463     0.116247  -0.124  0.90115    
+sc_CTY_CollUp                            -0.017970     0.074791  -0.240  0.81045    
+sc_CTY_LT30yo                            -0.004834     0.060159  -0.080  0.93607    
+sc_CTY_60Up                              -0.184737     0.052680  -3.507  0.00060 ***
+sc_CTY_Below_poverty_level_AGE_18_64      0.053089     0.056394   0.941  0.34803    
+sc_CTY_Female_hher_no_husbandhh          -0.008701     0.048499  -0.179  0.85786    
+sc_CTY_Unem_rate_pop_16_over              0.001592     0.043664   0.036  0.97096    
+sc_CTY_Labor_Force_Part_Rate_pop_16_over -0.008168     0.044135  -0.185  0.85343    
+sc_CTY_Manufactur                        -0.018554     0.043791  -0.424  0.67240    
+sc_CTY_Md_inc_hhs                        -0.075196     0.072592  -1.036  0.30194    
+sc_CTY_POPPCT_RURAL                      -0.001606     0.043641  -0.037  0.97069    
+sc_CTY_Speak_only_English                -0.183062     0.087306  -2.097  0.03770 *  
+sc_CTY_White                              0.106424     0.055116   1.931  0.05539 .  
+sc_CTY_Black_or_African_American          0.069088     0.091308   0.757  0.45046    
+ln_CTY_tot_pop                            0.025568     0.027213   0.940  0.34896    
+sc_turnout_pct_20                         0.203306     0.041451   4.905 2.42e-06 ***
+pcttw_sanders16                           0.035668     0.005004   7.127 4.09e-11 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.3066 on 1542 degrees of freedom
+Multiple R-squared(full model): 0.9242   Adjusted R-squared: 0.916 
+Multiple R-squared(proj model): 0.5967   Adjusted R-squared: 0.553 
+F-statistic(full model, *iid*):112.6 on 167 and 1542 DF, p-value: < 2.2e-16 
+F-statistic(proj model):  61.1 on 18 and 149 DF, p-value: < 2.2e-16 
+
+
+
+> # SI Table 4
+> stargazer(fullPrepped$balTab,summary = F,out = '../Tables/SI-table4.tex')
+
+% Table created by stargazer v.5.2.2 by Marek Hlavac, Harvard University. E-mail: hlavac at fas.harvard.edu
+% Date and time: Thu, Jun 17, 2021 - 12:52:28 AM
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}} cccccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & Covs & Diff\_Unm & Bal\_Test\_Unm & Diff\_Match & Bal\_Test\_Match \\ 
+\hline \\[-1.8ex] 
+1 & sc\_CTY\_LTHS & $$-$0.530$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+2 & sc\_CTY\_CollUp & $0.540$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+3 & sc\_CTY\_LT30yo & $$-$0.170$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+4 & sc\_CTY\_60Up & $0.140$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+5 & sc\_CTY\_Below\_poverty\_level\_AGE\_18\_64 & $$-$0.490$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+6 & sc\_CTY\_Female\_hher\_no\_husbandhh & $$-$0.460$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+7 & sc\_CTY\_Unem\_rate\_pop\_16\_over & $$-$0.180$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+8 & sc\_CTY\_Labor\_Force\_Part\_Rate\_pop\_16\_over & $0.290$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+9 & sc\_CTY\_Manufactur & $$-$0.260$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+10 & sc\_CTY\_Md\_inc\_hhs & $0.590$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+11 & sc\_CTY\_POPPCT\_RURAL & $$-$0.550$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+12 & sc\_CTY\_Speak\_only\_English & $$-$0.330$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+13 & sc\_CTY\_White & $0.300$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+14 & sc\_CTY\_Black\_or\_African\_American & $$-$1.160$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+15 & ln\_CTY\_tot\_pop & $0.520$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+16 & sc\_turnout\_pct\_20 & $0.450$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+17 & caucus\_switch & $0.070$ & Not Balanced, \textgreater 0.05 & $0$ & Balanced, \textless 0.05 \\ 
+\hline \\[-1.8ex] 
+\end{tabular} 
+\end{table} 
+
+> # SI Table 5
+> covars <- rownames(mFullRaw$coefficients)
+
+> labs <- gsub('Treatbin','Exposure Dummy',gsub('Turnout pct 20','Turnout 2020',gsub('Pcttw sander16','Sanders 2016',gsub('Caucus$','Caucus dummy',gsub("Lths","LTHS",gsub("Collup","Coll. Up",gsub("Md inc HH","Med HH Inc",gsub("Sc ","",gsub(" or african american|band$","",Hmisc::capitalize(trimws(gsub("manufactur","manufacturing",gsub("hher|hhs","HH",gsub("labor force part rate","LFPR",gsub("bachelor s","bachelor's",gsub("age 18 64|pop 16 over|hh$|poppct","",gsub("\\_"," ",gsub("^sc_|^.*cty\\_","",tolower(covars)))))))))))))))))))
+
+> stargazer(mFullRaw,mFullMatch,mFullWgt,
++                  mMarRaw,mMarMatch,mMarWgt,
++                  keep.stat = c("n","rsq"),
++                  star.cutoffs = c(.1,.05,.01,.001),
++                  star.char = c('\\dag','*','**','***'),
++                  covariate.labels = labs,out = '../Tables/SI-table5.tex')
+
+% Table created by stargazer v.5.2.2 by Marek Hlavac, Harvard University. E-mail: hlavac at fas.harvard.edu
+% Date and time: Thu, Jun 17, 2021 - 12:52:28 AM
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lcccccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{6}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-7} 
+\\[-1.8ex] & \multicolumn{3}{c}{paste0("scale(pcttw\_sanders) \textasciitilde treatBin + ", paste(c(covariates, "pcttw\_sanders16"), collapse = " + "), " \textbar  DMA\_CODE \textbar  0 \textbar  DMA\_CODE")} & \multicolumn{3}{c}{paste0("scale(pcttw\_sanders) \textasciitilde treatBin + ", paste(c(covs, "pcttw\_sanders16"), collapse = " + "), " \textbar  DMA\_CODE \textbar  0 \textbar  DMA\_CODE")} \\ 
+\\[-1.8ex] & (1) & (2) & (3) & (4) & (5) & (6)\\ 
+\hline \\[-1.8ex] 
+ Exposure Dummy & $-$1.068$^{**}$ & $-$0.482$^{*}$ & $-$0.994$^{**}$ & $-$0.943$^{**}$ & $-$0.656$^{*}$ & $-$0.940$^{**}$ \\ 
+  & (0.387) & (0.230) & (0.338) & (0.325) & (0.296) & (0.323) \\ 
+  & & & & & & \\ 
+ LTHS & $-$0.038 & $-$0.040 & $-$0.083 & $-$0.062 & 0.135 & $-$0.014 \\ 
+  & (0.049) & (0.123) & (0.113) & (0.054) & (0.179) & (0.116) \\ 
+  & & & & & & \\ 
+ Coll. Up & 0.019 & 0.147 & 0.070 & $-$0.0003 & 0.159 & $-$0.018 \\ 
+  & (0.052) & (0.207) & (0.067) & (0.041) & (0.121) & (0.075) \\ 
+  & & & & & & \\ 
+ Lt30yo & $-$0.052 & $-$0.309$^{\dag}$ & $-$0.044 & $-$0.055 & $-$0.372$^{**}$ & $-$0.005 \\ 
+  & (0.049) & (0.165) & (0.062) & (0.034) & (0.140) & (0.060) \\ 
+  & & & & & & \\ 
+ 60up & $-$0.175$^{***}$ & $-$0.257 & $-$0.176$^{**}$ & $-$0.218$^{***}$ & $-$0.450$^{***}$ & $-$0.185$^{***}$ \\ 
+  & (0.049) & (0.180) & (0.054) & (0.043) & (0.100) & (0.053) \\ 
+  & & & & & & \\ 
+ Below poverty level & 0.041 & 0.086 & 0.042 & 0.037 & 0.111 & 0.053 \\ 
+  & (0.030) & (0.104) & (0.050) & (0.031) & (0.106) & (0.056) \\ 
+  & & & & & & \\ 
+ Female HH no hus & $-$0.023 & $-$0.013 & 0.055 & $-$0.034 & $-$0.149 & $-$0.009 \\ 
+  & (0.037) & (0.075) & (0.057) & (0.037) & (0.214) & (0.048) \\ 
+  & & & & & & \\ 
+ Unem rate & $-$0.020 & 0.285$^{\dag}$ & $-$0.019 & $-$0.026 & 0.094 & 0.002 \\ 
+  & (0.024) & (0.158) & (0.040) & (0.027) & (0.077) & (0.044) \\ 
+  & & & & & & \\ 
+ LFPR & 0.057 & 0.012 & $-$0.017 & 0.051 & $-$0.073 & $-$0.008 \\ 
+  & (0.040) & (0.149) & (0.039) & (0.040) & (0.153) & (0.044) \\ 
+  & & & & & & \\ 
+ Manufacturing & $-$0.040 & 0.154$^{\dag}$ & 0.005 & $-$0.054$^{*}$ & 0.195$^{**}$ & $-$0.019 \\ 
+  & (0.031) & (0.086) & (0.042) & (0.022) & (0.073) & (0.044) \\ 
+  & & & & & & \\ 
+ Med HH Inc & $-$0.149$^{**}$ & 0.052 & $-$0.139$^{*}$ & $-$0.192$^{***}$ & $-$0.097 & $-$0.075 \\ 
+  & (0.048) & (0.189) & (0.065) & (0.053) & (0.141) & (0.073) \\ 
+  & & & & & & \\ 
+ Rural & $-$0.031 & $-$0.039 & $-$0.030 & $-$0.014 & $-$0.089 & $-$0.002 \\ 
+  & (0.021) & (0.068) & (0.043) & (0.020) & (0.170) & (0.044) \\ 
+  & & & & & & \\ 
+ Speak only english & $-$0.195$^{***}$ & $-$0.295 & $-$0.229$^{**}$ & $-$0.217$^{***}$ & $-$0.251 & $-$0.183$^{*}$ \\ 
+  & (0.041) & (0.235) & (0.086) & (0.044) & (0.227) & (0.087) \\ 
+  & & & & & & \\ 
+ White & 0.069 & $-$0.279 & 0.100$^{*}$ & 0.071 & $-$0.371$^{\dag}$ & 0.106$^{\dag}$ \\ 
+  & (0.050) & (0.225) & (0.045) & (0.055) & (0.211) & (0.055) \\ 
+  & & & & & & \\ 
+ Black & $-$0.083 & $-$0.380 & 0.002 & $-$0.135$^{*}$ & $-$0.644$^{*}$ & 0.069 \\ 
+  & (0.052) & (0.375) & (0.076) & (0.060) & (0.285) & (0.091) \\ 
+  & & & & & & \\ 
+ Tot pop & 0.025 & 0.094 & 0.006 & 0.039 & $-$0.013 & 0.026 \\ 
+  & (0.025) & (0.062) & (0.024) & (0.028) & (0.072) & (0.027) \\ 
+  & & & & & & \\ 
+ Turnout 2020 & 0.135$^{***}$ & 0.020 & 0.070 & 0.201$^{***}$ & 0.515$^{*}$ & 0.203$^{***}$ \\ 
+  & (0.034) & (0.267) & (0.063) & (0.024) & (0.207) & (0.041) \\ 
+  & & & & & & \\ 
+ Caucus switch & $-$0.024 & 0.279 & 0.693$^{*}$ &  &  &  \\ 
+  & (0.679) & (1.130) & (0.332) &  &  &  \\ 
+  & & & & & & \\ 
+ Pcttw sanders16 & 0.026$^{***}$ & 0.051$^{**}$ & 0.032$^{***}$ & 0.026$^{***}$ & 0.044$^{***}$ & 0.036$^{***}$ \\ 
+  & (0.004) & (0.016) & (0.005) & (0.004) & (0.010) & (0.005) \\ 
+  & & & & & & \\ 
+\hline \\[-1.8ex] 
+Observations & 1,882 & 375 & 1,882 & 1,710 & 304 & 1,710 \\ 
+R$^{2}$ & 0.817 & 0.803 & 0.899 & 0.860 & 0.898 & 0.924 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{6}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+> # SI Figure 14
+> toplot <- fullPrepped$balPlot$toplot
+
+> dist2d <- function(x,y) {
++   m <- cbind(c(-1,-1),c(x,y))
++   abs(det(m))/sqrt(sum(c(-1,-1)^2))
++ }
+
+> vdist2d <- Vectorize(dist2d,vectorize.args = c("x","y"))
+
+> toplot$type <- as.character(toplot$type)
+
+> toplot$cov <- as.character(toplot$cov)
+
+> toplot <- toplot %>% bind_rows(toplot %>% group_by(cov) %>% summarise(x = min(x,y),y = min(x,y)),
++                                toplot %>% group_by(cov) %>% summarise(x = max(x,y),y = max(x,y)))
+`summarise()` ungrouping output (override with `.groups` argument)
+`summarise()` ungrouping output (override with `.groups` argument)
+
+> toplot$cov <- Hmisc::capitalize(tolower(trimws(gsub("Manufactur","Manufacturing",gsub("Labor Force Part Rate","LFPR",gsub("hher|hhs","HH",gsub("Bachelor s","Bachelor's",gsub("_"," ",gsub("CTY_|AGE_18_64|pop_16_over|hh$|POPPCT","",toplot$cov)))))))))
+
+> toplot %>% group_by(type,cov) %>%
++   summarise(eucdist = mean(vdist2d(x = x,y= y))) %>%
++   filter(!is.na(type)) -> sum.euc
+`summarise()` regrouping output by 'type' (override with `.groups` argument)
+
+> pdf('../Figures/SI_figure14.pdf',width = 7,height = 5)
+
+> toplot %>%
++   filter(!grepl('caucus',tolower(cov))) %>%
++   ggplot(aes(x = x,y = y,color = factor(type,levels = c("Raw","Matched")),text = paste0(type,"\nEuc Dist = ",round(vdist2d(x = x,y = y),2)))) +
++   geom_point(alpha = .3,size = .5) +
++   geom_abline() +
++   geom_abline(aes(intercept = (rrlb - rrub) * 0.1,slope = 1),linetype = "dashed") +
++   geom_abline(aes(intercept = -(rrlb - rrub) * 0.1,slope = 1),linetype = "dashed") +
++   theme_bw() +
++   xlab("Control") + ylab("Treated") +
++   theme(legend.position = "bottom") +
++   facet_wrap(~cov,scales = "free") +
++   scale_color_discrete("",na.translate = F) +
++   guides(color = guide_legend(override.aes = list(size = 5,alpha = 1)))
+
+> dev.off()
+null device 
+          1 

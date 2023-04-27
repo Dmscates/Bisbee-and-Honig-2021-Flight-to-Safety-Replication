@@ -1,0 +1,161 @@
+
+> # File name: figure8_SIfigure19.R
+> # In: 
+> #   - /Data/france_data.RData: Data on 2020 municipal elections in France, linked with local-level cases and deaths
+> # Out: 
+> #   - /Figures/figure8.pdf
+> #   - /Figures/SI_figure19.pdf
+> 
+> 
+> require(lfe)
+
+> require(ggridges)
+
+> require(tidyverse)
+
+> require(gridExtra)
+
+> rm(list =ls())
+
+> gc()
+          used  (Mb) gc trigger  (Mb) max used  (Mb)
+Ncells 3343555 178.6    6292222 336.1  6292222 336.1
+Vcells 6280127  48.0   58771791 448.4 91830922 700.7
+
+> ####################################################################################################################### Loading functions
+> source('./helper_functions.R')
+
+> load('../Data/france_data.RData')
+
+> # Figure 8
+> p1 <- toanal %>%
++   mutate(mainstream = ifelse(mainstream == 0,'Non-Mainstream','Mainstream'),
++          period = factor(ifelse(date == as.Date('2020-03-15'),'March Elections','June Elections'),
++                          levels = c('March Elections','June Elections'))) %>%
++   group_by(mainstream,period) %>%
++   summarise(votes = mean(votes)) %>%
++   ungroup() %>%
++   filter(complete.cases(.)) %>%
++   ggplot(aes(x = period,y = votes,fill = factor(mainstream))) + 
++   stat_summary(fun.y = mean,geom = "bar",position = position_dodge(width = .9),
++                size = 3,alpha = .7) + 
++   scale_fill_manual(name = '',values = c('Mainstream' = 'grey80','Non-Mainstream' = 'grey30')) + 
++   theme_ridges() + xlab('Period') + ylab('Aggregate Vote Share')
+`summarise()` regrouping output by 'mainstream' (override with `.groups` argument)
+
+> p2 <- toanal %>%
++   mutate(mainstream = ifelse(mainstream == 0,'Non-Mainstream','Mainstream'),
++          period = factor(ifelse(date == as.Date('2020-03-15'),'March Elections','June Elections'),
++                          levels = c('March Elections','June Elections')),
++          logcases = log(deaths+1)) %>%
++   filter(!is.na(period)) %>%
++   ggplot(aes(x = logcases,y = votes,color = mainstream)) + 
++   geom_point(alpha = .7,size = 2) + 
++   geom_smooth(method = 'lm') +
++   scale_color_manual(name = "",values = c('Mainstream' = 'grey80',"Non-Mainstream" = "grey30")) + 
++   theme_ridges() + xlab("Deaths (logged)") + ylab('Aggregate Vote Share')
+
+> pdf('../figures/figure8.pdf',width = 7,height = 4)
+
+> grid.arrange(p1 + theme(legend.position = 'bottom'),
++              p2 + theme(legend.position = 'bottom'),ncol = 2)
+`geom_smooth()` using formula 'y ~ x'
+
+> dev.off()
+null device 
+          1 
+
+> # SI Figure 19
+> toanal$post <- ifelse(toanal$date == '2020-03-15',0,1)
+
+> toanal$antiEst <- (toanal$mainstream - 1)^2
+
+> summary(mod1 <- felm(votes ~ antiEst*post | dpt_code | 0 | dpt_code,toanal))
+
+Call:
+   felm(formula = votes ~ antiEst * post | dpt_code | 0 | dpt_code,      data = toanal) 
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-14.5210  -3.0959  -0.2508   2.8746  17.6568 
+
+Coefficients:
+             Estimate Cluster s.e. t value Pr(>|t|)    
+antiEst       10.7867       0.8409  12.828  < 2e-16 ***
+post           1.9101       0.7892   2.420   0.0175 *  
+antiEst:post  -9.9664       1.2312  -8.095 2.15e-12 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 5.747 on 243 degrees of freedom
+  (5 observations deleted due to missingness)
+Multiple R-squared(full model): 0.7054   Adjusted R-squared: 0.5891 
+Multiple R-squared(proj model): 0.4239   Adjusted R-squared: 0.1963 
+F-statistic(full model, *iid*):6.062 on 96 and 243 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 61.25 on 3 and 93 DF, p-value: < 2.2e-16 
+
+
+
+> summary(mod2 <- felm(votes ~ antiEst*log(deaths+1) | post + dpt_code | 0 | dpt_code,toanal))
+
+Call:
+   felm(formula = votes ~ antiEst * log(deaths + 1) | post + dpt_code |      0 | dpt_code, data = toanal) 
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-14.8853  -3.2163  -0.3575   2.8878  17.7984 
+
+Coefficients:
+                        Estimate Cluster s.e. t value Pr(>|t|)    
+antiEst                  10.7109       0.9070  11.809  < 2e-16 ***
+log(deaths + 1)           1.3458       0.3136   4.291 4.35e-05 ***
+antiEst:log(deaths + 1)  -2.0322       0.2559  -7.942 4.47e-12 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 5.778 on 242 degrees of freedom
+  (5 observations deleted due to missingness)
+Multiple R-squared(full model): 0.7035   Adjusted R-squared: 0.5847 
+Multiple R-squared(proj model): 0.3805   Adjusted R-squared: 0.1322 
+F-statistic(full model, *iid*): 5.92 on 97 and 242 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 50.45 on 3 and 93 DF, p-value: < 2.2e-16 
+
+
+
+> toplot <- data.frame(interaction_plot_continuous(mod1,plot = T,pointsplot = T,colr = 'black',alph = 200,num_points = 2,
++                             xlabel = "Election Wave",ylabel = 'Marginal Coefficient of Mainstream')) %>%
++   mutate(type = 'Temporal')
+
+> toplot <- bind_rows(toplot,data.frame(interaction_plot_continuous(mod2,plot = T,pointsplot = T,
++                                                                   colr = 'black',alph = 200,num_points = 20,
++                                                  xlabel = "Election Wave",ylabel = 'Marginal Coefficient of Mainstream')) %>%
++   mutate(type = 'Geographic'))
+
+> p1 <- toplot %>%
++   filter(type == 'Temporal') %>%
++   mutate(x = factor(ifelse(x_2 == 0,'March Elections','June Elections'),levels = c('March Elections','June Elections'))) %>%
++   ggplot(aes(x = x,y = delta_1)) + 
++   geom_point() + 
++   geom_errorbar(aes(ymin = lb,ymax = ub),width = .1) + 
++   geom_hline(yintercept = 0,linetype = 'dashed') +
++   ylab('Margnial Coefficient on Non-Mainstream') + xlab('') + 
++   theme_ridges() + 
++   ggtitle('Temporal Variation')
+
+> p2 <- toplot %>%
++   filter(type == 'Geographic') %>%
++   ggplot(aes(x = x_2,y = delta_1)) + 
++   geom_point() + 
++   geom_errorbar(aes(ymin = lb,ymax = ub),width = .1) + 
++   geom_hline(yintercept = 0,linetype = 'dashed') +
++   ylab('Margnial Coefficient on Non-Mainstream') + xlab('Logged Deaths') + 
++   theme_ridges() + 
++   ggtitle('Geographic Variation')
+
+> pdf('../Figures/SI_figure19.pdf',width = 8,height = 4)
+
+> grid.arrange(p1,p2,ncol = 2)
+
+> dev.off()
+RStudioGD 
+        2 

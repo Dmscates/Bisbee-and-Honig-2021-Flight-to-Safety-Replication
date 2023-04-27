@@ -1,0 +1,161 @@
+# File name: SI_robust_prep.R
+# In: 
+#   - replication_data.RData
+# Out: 
+#   - /Data/Results/SI-data.RData
+
+require(lme4)
+require(lfe)
+require(MatchIt)
+require(WeightIt)
+require(tjbal)
+require(optmatch)
+require(stargazer)
+require(cobalt)
+require(gridExtra)
+require(ggridges)
+require(ggrepel)
+require(CBPS)
+require(tidyverse)
+rm(list = ls())
+gc()
+
+####################################################################################################################### Loading data
+load('../Data/replication_data.RData')
+
+
+
+
+####################################################################################################################### Loading functions
+source('./helper_functions.R')
+
+
+
+# ####################################################################################################################### Command line arguments
+# args <- commandArgs(trailingOnly = T)
+# # args <- c(3,2,2,2)
+# # Y: 1-3
+# # D: 1-2
+# # FE: 1-4
+# # GEO: 1-2
+# yInd <- as.numeric(args[1])
+# dInd <- as.numeric(args[2])
+# feInd <- as.numeric(args[3])
+# geoInd <- as.numeric(args[4])
+
+
+
+####################################################################################################################### Preparing variables
+Y <- paste0(c("pct_","VAP_","pcttw_"),"sanders")
+D <- unlist(lapply(c("sc_","ln_"),function(x) paste0(x,paste0(c("county_","DMA_","state_"),"cases"))))
+FE <- c("0","DMA_CODE","date")
+covariates <- c("sc_CTY_LTHS","sc_CTY_CollUp",
+                "sc_CTY_LT30yo","sc_CTY_60Up",
+                "sc_CTY_Below_poverty_level_AGE_18_64","sc_CTY_Female_hher_no_husbandhh",
+                "sc_CTY_Unem_rate_pop_16_over","sc_CTY_Labor_Force_Part_Rate_pop_16_over",
+                "sc_CTY_Manufactur","sc_CTY_Md_inc_hhs",
+                "sc_CTY_POPPCT_RURAL","sc_CTY_Speak_only_English","sc_CTY_White","sc_CTY_Black_or_African_American",
+                "ln_CTY_tot_pop","sc_turnout_pct_20")
+
+
+set.seed(123)
+resSI <- list()
+for(y in 'pcttw_sanders') {
+  for(fe in c('DMA_CODE','0')) {
+    for(geo in 'DMA_') {
+      for(d in c('March10Cases','March17Cases')) {
+        for(pre in c("2020-03-01","2020-03-03","2020-03-10","2020-03-17")) {
+          for(post in c("2020-03-01","2020-03-03","2020-03-10","2020-03-17")) {
+            if(pre == post) { next }
+            
+            if(pre == "2020-03-01") {
+              finalDat$post <- ifelse(finalDat$date == as.Date(post),1,
+                                      ifelse(finalDat$date <= as.Date(pre),0,NA))
+            } else if(post == "2020-03-01") {
+              finalDat$post <- ifelse(finalDat$date <= as.Date(post),1,
+                                      ifelse(finalDat$date == as.Date(pre),0,NA))
+            } else {
+              finalDat$post <- ifelse(finalDat$date == as.Date(post),1,
+                                      ifelse(finalDat$date == as.Date(pre),0,NA))
+            }
+            finalDat$treatBin <- ifelse(finalDat[[paste0(geo,d)]] > 1,1,0)
+            finalDat$treat <- ifelse(finalDat$post == 1 & finalDat$treatBin == 1,1,0)
+            tmpAnal <- finalDat %>% select(Y,treat,treatBin,c(covariates,paste0(y,"16")),pcttw_sanders16,VAP_sanders16,DMA_CODE,date,stab,matches("cases"),post) %>% filter(complete.cases(.))
+            m.out <- matchit(formula = as.formula(paste("treatBin ~ ",paste(c(covariates,paste0(y,"16")),collapse = " + "))),
+                             data = tmpAnal,
+                             method = "nearest",
+                             distance = "mahalanobis")
+            
+            m.data <- match.data(m.out)
+            W.out <- weightit(formula(paste0("treatBin ~ ",paste(c(covariates,paste0(y,"16")),collapse = " + "))),
+                              data = tmpAnal, estimand = "ATT", method = "cbps")
+            
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$basic$bin <- summary(felm(as.formula(paste0('scale(',y,") ~ treat + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),tmpAnal))$coefficients
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$basic$cont <- summary(felm(as.formula(paste0('scale(',y,") ~ ",paste0("scale(",geo,d,")")," + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),tmpAnal))$coefficients
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$basic$did$coefs <- summary(tmp <- felm(as.formula(paste0('scale(',y,") ~ treatBin*post + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),tmpAnal))$coefficients
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$basic$did$mfx <- interaction_plot_continuous(tmp,num_points = 2,pointsplot = T)
+            
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$matching$bin <- summary(felm(as.formula(paste0('scale(',y,") ~ treat + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),m.data,weights = m.data$weights))$coefficients
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$matching$cont <- summary(felm(as.formula(paste0('scale(',y,") ~ ",paste0("scale(",geo,d,")")," + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),m.data,weights = m.data$weights))$coefficients
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$matching$did$coefs <- summary(tmp <- felm(as.formula(paste0('scale(',y,") ~ treatBin*post + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),m.data,weights = m.data$weights))$coefficients
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$matching$did$mfx <- interaction_plot_continuous(tmp,num_points = 2,pointsplot = T)
+            
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$weighting$bin <- summary(felm(as.formula(paste0('scale(',y,") ~ treat + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),tmpAnal,weights = W.out$weights))$coefficients
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$weighting$cont <- summary(felm(as.formula(paste0('scale(',y,") ~ ",paste0("scale(",geo,d,")")," + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),tmpAnal,weights = W.out$weights))$coefficients
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$weighting$did$coefs <- summary(tmp <- felm(as.formula(paste0('scale(',y,") ~ treatBin*post + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),tmpAnal,weights = W.out$weights))$coefficients
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$weighting$did$mfx <- interaction_plot_continuous(tmp,num_points = 2,pointsplot = T)
+            
+            # Permutation SHEEYAHT
+            basic.bin.plac <- basic.cont.plac <- basic.did.plac <- matching.bin.plac <- matching.cont.plac <- matching.did.plac <- weighting.bin.plac <- weighting.cont.plac <- weighting.did.plac <- NULL
+            for(bs in 1:100) {
+              tmpAnal$perm <- sample(tmpAnal[[paste0(geo,d)]],size = nrow(tmpAnal))
+              tmpAnal$treatBin <- ifelse(tmpAnal$perm > 1,1,0)
+              tmpAnal$treat <- ifelse(tmpAnal$post == 1 & tmpAnal$treatBin == 1,1,0)
+              m.out <- matchit(formula = as.formula(paste("treatBin ~ ",paste(c(covariates,paste0(y,"16")),collapse = " + "))),
+                               data = tmpAnal,
+                               method = "full",
+                               distance = "mahalanobis")
+              
+              m.data <- match.data(m.out)
+              W.out <- weightit(formula(paste0("treatBin ~ ",paste(c(covariates,paste0(y,"16")),collapse = " + "))),
+                                data = tmpAnal, estimand = "ATT", method = "cbps")
+              
+              test <- tryCatch(felm(as.formula(paste0('scale(',y,") ~ ",paste0("scale(",geo,d,")")," + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),m.data,weights = m.data$weights),error = function(e) e)
+              if(inherits(test,"error")) { next }
+              basic.bin.plac <- c(basic.bin.plac,summary(felm(as.formula(paste0('scale(',y,") ~ treat + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),tmpAnal))$coefficients['treat',1])
+              basic.cont.plac <- c(basic.cont.plac,summary(felm(as.formula(paste0('scale(',y,") ~ scale(perm) + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),tmpAnal))$coefficients["scale(perm)",1])
+              basic.did.plac <- c(basic.did.plac,summary(felm(as.formula(paste0('scale(',y,") ~ treatBin*post + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),tmpAnal))$coefficients["treatBin:post",1])
+              
+              matching.bin.plac <- c(matching.bin.plac,summary(felm(as.formula(paste0('scale(',y,") ~ treat + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),m.data,weights = m.data$weights))$coefficients['treat',1])
+              matching.cont.plac <- c(matching.cont.plac,summary(felm(as.formula(paste0('scale(',y,") ~ scale(perm) + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),m.data,weights = m.data$weights))$coefficients["scale(perm)",1])
+              matching.did.plac <- c(matching.did.plac,
+                                     summary(felm(as.formula(paste0('scale(',y,") ~ treatBin*post + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),m.data,weights = m.data$weights))$coefficients["treatBin:post",1])
+              
+              weighting.bin.plac <- c(weighting.bin.plac,summary(felm(as.formula(paste0('scale(',y,") ~ treat + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),tmpAnal,weights = W.out$weights))$coefficients['treat',1])
+              weighting.cont.plac <- c(weighting.cont.plac,summary(felm(as.formula(paste0('scale(',y,") ~ scale(perm) + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),tmpAnal,weights = W.out$weights))$coefficients["scale(perm)",1])
+              weighting.did.plac <- c(weighting.did.plac,summary(felm(as.formula(paste0('scale(',y,") ~ treatBin*post + ",paste(c(covariates,paste0(y,"16")),collapse = "+"),"| 0 | 0 | ",fe)),tmpAnal,weights = W.out$weights))$coefficients["treatBin:post",1])
+              
+              cat(".")
+            }
+            cat('\n')
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$basic$plac$bin <- basic.bin.plac
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$basic$plac$cont <- basic.cont.plac
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$basic$plac$did <- basic.did.plac
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$matching$plac$bin <- matching.bin.plac
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$matching$plac$cont <- matching.cont.plac
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$matching$plac$did <- matching.did.plac
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$weighting$plac$bin <- weighting.bin.plac
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$weighting$plac$cont <- weighting.cont.plac
+            resSI[[y]][[geo]][[d]][[fe]][[pre]][[post]]$felm$weighting$plac$did <- weighting.did.plac
+          }
+        }
+      }
+    }
+  }
+  cat(y," done\n")
+}
+
+
+save(resSI,file = paste0("../Data/Results/SI-data.RData"))
+
+

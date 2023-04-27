@@ -1,0 +1,173 @@
+
+> # File name: SIfigure11_SIfigure12_SIfigure15_SIfigure16.R
+> # In: 
+> #   - nationscape_prepped.RData: Nationscape survey data merged with NYT covid data, aggregated to the congressional district level
+> # Out: 
+> #   - /Figures/SI_figure11.pdf
+> #   - /Figures/SI_figure12.pdf
+> #   - /Figures/SI_figure15.pdf
+> #   - /Figures/SI_figure16.pdf
+> 
+> 
+> 
+> rm(list = ls())
+
+> gc()
+          used  (Mb) gc trigger  (Mb) max used  (Mb)
+Ncells 3353417 179.110 336.1  6292222 336.1
+Vcells 6329051  48.3   47017433 358.8 91830922 700.7
+
+> require(tidyverse)
+
+> require(stargazer)
+
+> require(lubridate)
+Loading required package: lubridate
+
+Attaching package: ‘lubridate’
+
+The following objects are masked from ‘package:base’:
+
+    date, intersect, setdiff, union
+
+
+> require(ggridges)
+
+> require(lfe)
+
+> ####################################################################################################################### Loading data
+> load('../Data/nationscape_data.RData')
+
+> ####################################################################################################################### Loading functions
+> source('./helper_functions.R')
+
+> # SI Figure 11
+> pdf('../Figures/SI_figure11.pdf',width = 7,height = 5)
+
+> forAnal %>%
++   filter(dateMo < as.Date('2020-07-01') & dateMo > as.Date('2019-07-01')) %>%
++   group_by(stcd,dateMo,exposedMean) %>%
++   summarise(ideoM = mean(economy_better,na.rm=T)) %>%
++   ggplot(aes(x = ideoM,y = fct_rev(factor(dateMo)),group = paste(dateMo,exposedMean),
++              fill = paste(dateMo,exposedMean))) +
++   geom_density_ridges(alpha = .6,color = 'white',quantile_lines = T,quantiles = 2) + 
++   scale_fill_cyclical(
++     breaks = c("2019-08-01 0", "2019-08-01 1"),
++     labels = c(`2019-08-01 0` = "Insulated", `2019-08-01 1` = "Exposed"),
++     values = rev(c("#000000", "#b0b0b0", "#000000", "#b0b0b0")),
++     name = "", guide = "legend"
++   ) + 
++   theme_ridges() + 
++   xlab("Economic Evaluation") + 
++   ylab("") + 
++   scale_x_continuous(limits = c(1,3),breaks = 1:3,labels = c('Improved','The Same','Worse'))
+`summarise()` regrouping output by 'stcd', 'dateMo' (override with `.groups` argument)
+Picking joint bandwidth of 0.0433
+
+> dev.off()
+RStudioGD 
+        2 
+
+> # SI Figure 12
+> forAnal %>%
++   filter(dateMo < as.Date('2020-07-01') & dateMo > as.Date('2019-07-01')) %>%
++   group_by(stcd,dateWk,dateMo,exposedMean) %>%
++   summarise(econ = mean(economy_better,na.rm=T)) %>%
++   mutate(post = ifelse(dateMo > as.Date('2020-02-01'),1,0)) -> forDID
+`summarise()` regrouping output by 'stcd', 'dateWk', 'dateMo' (override with `.groups` argument)
+
+> summary(mEcon <- felm(scale(econ) ~ exposedMean*post | 0 | 0 | stcd,forDID %>% filter(dateMo < as.Date('2020-04-01'))))
+
+Call:
+   felm(formula = scale(econ) ~ exposedMean * post | 0 | 0 | stcd,      data = forDID %>% filter(dateMo < as.Date("2020-04-01"))) 
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-3.7970 -0.6056 -0.0072  0.5897  3.6260 
+
+Coefficients:
+                 Estimate Cluster s.e. t value Pr(>|t|)    
+(Intercept)      -0.14395      0.01814  -7.936 2.21e-15 ***
+exposedMean       0.21019      0.04295   4.894 9.97e-07 ***
+post              0.88327      0.02258  39.124  < 2e-16 ***
+exposedMean:post  0.06433      0.05497   1.170    0.242    
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.9519 on 17304 degrees of freedom
+Multiple R-squared(full model): 0.09403   Adjusted R-squared: 0.09387 
+Multiple R-squared(proj model): 0.09403   Adjusted R-squared: 0.09387 
+F-statistic(full model, *iid*):598.7 on 3 and 17304 DF, p-value: < 2.2e-16 
+F-statistic(proj model): 634.7 on 3 and 437 DF, p-value: < 2.2e-16 
+
+
+
+> toplot <- data.frame(interaction_plot_continuous(mEcon,pointsplot = T,num_points = 2,plot = T))
+
+> pdf('../Figures/SI_figure12.pdf',width = 7,height = 4)
+
+> toplot %>%
++   mutate(x_2 = factor(ifelse(x_2 == 0,'Pre-March','March'),levels = c('Pre-March','March'))) %>%
++   ggplot(aes(x = x_2,y = delta_1)) + 
++   geom_point() + 
++   geom_errorbar(aes(ymin = lb,ymax = ub),width = .1) +
++   geom_hline(yintercept = 0,linetype = 'dashed') + 
++   theme_ridges() +
++   xlab('Period') + ylab('Effect of Covid Exposure')
+
+> dev.off()
+RStudioGD 
+        2 
+
+> # SI Figure 15
+> (pSanders <- forAnal %>%
++   mutate(sanders = (cand_favorability_sanders - 5)*-1) %>% #ifelse(cand_favorability_sanders < 3,1,0)) %>%
++   filter(dateMo < as.Date('2020-05-01') & dateMo > as.Date('2019-07-01')) %>%
++   group_by(stcd,dateMo,exposedMean) %>%
++   summarise(ideoM = mean(sanders,na.rm=T)) %>%
++   ggplot(aes(x = ideoM,y = fct_rev(factor(dateMo)),group = paste(dateMo,exposedMean),
++              fill = paste(dateMo,exposedMean))) +
++   geom_density_ridges(alpha = .6,color = 'white',quantile_lines = T,quantiles = 2) + 
++   scale_fill_cyclical(
++     breaks = c("2019-08-01 0", "2019-08-01 1"),
++     labels = c(`2019-08-01 0` = "Insulated", `2019-08-01 1` = "Exposed"),
++     values = rev(c("#000000", "#b0b0b0", "#000000", "#b0b0b0")),
++     name = "", guide = "legend"
++   ) + 
++   theme_ridges() + 
++   xlab("Sanders Approval") + 
++   ylab("") + 
++   scale_x_continuous(breaks = 1:4,labels = c('Very\nunfavorable','Somewhat\nunfavorable','Somewhat\nfavorable','Very\nfavorable')))
+`summarise()` regrouping output by 'stcd', 'dateMo' (override with `.groups` argument)
+Picking joint bandwidth of 0.0842
+
+> pdf('../Figures/SI_figure15.pdf',width = 7,height = 5)
+
+> print(pSanders)
+Picking joint bandwidth of 0.0842
+
+> dev.off()
+RStudioGD 
+        2 
+
+> # SI Figure 16
+> pdf('../Figures/SI_figure16.pdf',width = 8,height = 5)
+
+> forAnal %>%
++   mutate(sanders = (cand_favorability_sanders - 5)*-1) %>% #ifelse(cand_favorability_sanders < 3,1,0)) %>%
++   filter(dateWk %in% as.Date(c('2020-02-02','2020-02-09','2020-02-16','2020-02-23','2020-03-01','2020-03-08','2020-03-15','2020-03-22','2020-03-29'))) %>%
++   group_by(stcd,dateWk) %>%
++   summarise(sanders = mean(sanders,na.rm=T),
++             cases = log(mean(casesSum,na.rm=T)+1)) %>%
++   ggplot(aes(x = cases,y = sanders)) + 
++   geom_point() + 
++   geom_smooth(method = 'lm') + 
++   facet_wrap(~dateWk) + 
++   theme_ridges() + 
++   xlab('Logged Cases') + ylab('Sanders Approval')
+`summarise()` regrouping output by 'stcd' (override with `.groups` argument)
+`geom_smooth()` using formula 'y ~ x'
+
+> dev.off()
+RStudioGD 
+        2 

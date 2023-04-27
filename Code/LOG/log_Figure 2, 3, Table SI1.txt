@@ -1,0 +1,340 @@
+
+> # File name: figure2_figure3_SItable1.R
+> # In: 
+> #   - replication_data.RData
+> # Out: 
+> #   - /Figures/figure2.pdf
+> #   - /Figures/figure3.pdf
+> #   - /Tables/SI-table1.tex
+> 
+> require(lme4)
+Loading required package: lme4
+Loading required package: Matrix
+
+> require(lfe)
+Loading required package: lfe
+
+> require(MatchIt)
+Loading required package: MatchIt
+
+> require(WeightIt)
+Loading required package: WeightIt
+
+> require(tjbal)
+Loading required package: tjbal
+## Syntax has changed since v.0.3.0.
+
+## See http://bit.ly/tjbal4r for more info.
+## Comments and suggestions -> yiqingxu@stanford.edu.
+
+
+> require(optmatch)
+Loading required package: optmatch
+Loading required package: survival
+The optmatch package has an academic license. Enter relaxinfo() for more information.
+
+> require(stargazer)
+Loading required package: stargazer
+
+Please cite as: 
+
+ Hlavac, Marek (2018). stargazer: Well-Formatted Regression and Summary Statistics Tables.
+ R package version 5.2.2. https://CRAN.R-project.org/package=stargazer 
+
+
+> require(cobalt)
+Loading required package: cobalt
+ cobalt (Version 4.3.1, Build Date: 2021-03-30 09:50:18 UTC)
+
+Attaching package: ‘cobalt’
+
+The following object is masked from ‘package:MatchIt’:
+
+    lalonde
+
+
+> require(tidyverse)
+Loading required package: tidyverse
+-- Attaching packages ------------------------------------------------------------------------------------------- tidyverse 1.3.0 --
+v ggplot2 3.3.2     v purrr   0.3.4
+v tibble  3.0.4     v dplyr   1.0.2
+v tidyr   1.1.2     v stringr 1.4.0
+v readr   1.4.0     v forcats 0.5.0
+-- Conflicts ---------------------------------------------------------------------------------------------- tidyverse_conflicts() --
+x tidyr::expand() masks Matrix::expand()
+x dplyr::filter() masks stats::filter()
+x dplyr::lag()    masks stats::lag()
+x tidyr::pack()   masks Matrix::pack()
+x tidyr::unpack() masks Matrix::unpack()
+
+> require(sf)
+Loading required package: sf
+Linking to GEOS 3.8.0, GDAL 3.0.4, PROJ 6.3.1
+
+> require(leaflet)
+Loading required package: leaflet
+
+> require(ggridges)
+Loading required package: ggridges
+
+> require(ggthemes)
+Loading required package: ggthemes
+
+> require(gridExtra)  
+Loading required package: gridExtra
+
+Attaching package: ‘gridExtra’
+
+The following object is masked from ‘package:dplyr’:
+
+    combine
+
+
+> rm(list = ls())
+
+> gc()
+          used  (Mb) gc trigger  (Mb) max used  (Mb)
+Ncells 2779552 148.5    5135950 274.3  4048718 216.3
+Vcells 5116041  39.1   10146329  77.5  7140722  54.5
+
+> ########################################################################################## Loading data
+> load('../Data/replication_data.RData')
+
+> # Figure 2: Map (compressed to PNG in manuscript)
+> toplot <- maps$county %>% filter(!state %in% c("Alaska","Hawaii"))
+
+> toplot$DMA.CODE[which(toplot$state == 'Texas' & toplot$name %in% c('Throckmorton','Knox'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Texas' & toplot$name %in% c('Baylor'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Texas' & toplot$name %in% c('Montague'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Texas' & toplot$name %in% c('Wise'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Colorado' & toplot$name %in% c('Cheyenne'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Colorado' & toplot$name %in% c('Kiowa'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Nebraska' & toplot$name %in% c('Hooker','Arthur','Blaine'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Nebraska' & toplot$name %in% c('Thomas'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Wyoming' & toplot$name %in% c('Johnson'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Wyoming' & toplot$name %in% c('Natrona'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Iowa' & toplot$name %in% c('Emmet'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Minnesota' & toplot$name %in% c('Martin'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Minnesota' & toplot$name %in% c('Nicollet'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Minnesota' & toplot$name %in% c('Sibley'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Illinois' & toplot$name %in% c('Edgar'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Illinois' & toplot$name %in% c('Clark'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Kentucky' & toplot$name %in% c('Adair','Cumberland'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Kentucky' & toplot$name %in% c('Metcalfe'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Ohio' & toplot$name %in% c('Athens'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Ohio' & toplot$name %in% c('Meigs'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Ohio' & toplot$name %in% c('Guernsey','Noble'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Ohio' & toplot$name %in% c('Belmont'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Arkansas' & toplot$name %in% c('Nevada'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Arkansas' & toplot$name %in% c('Columbia'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Tennessee' & toplot$name %in% c('Gibson','Chester'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Tennessee' & toplot$name %in% c('McNairy'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'South Carolina' & toplot$name %in% c('Saluda'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'South Carolina' & toplot$name %in% c('Edgefield'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'California' & toplot$name %in% c('Modoc'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'California' & toplot$name %in% c('Siskiyou'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Arkansas' & toplot$name %in% c('Johnson'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Arkansas' & toplot$name %in% c('Pope'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Colorado' & toplot$name %in% c('Custer'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Colorado' & toplot$name %in% c('Saguache'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Wyoming' & toplot$name %in% c('Lincoln'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Wyoming' & toplot$name %in% c('Teton'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Nebraska' & toplot$name %in% c('Banner'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Nebraska' & toplot$name %in% c('Morrill'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'South Dakota' & toplot$name %in% c('Jones'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'South Dakota' & toplot$name %in% c('Lyman'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'South Dakota' & toplot$name %in% c('Dewey','Campbell'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'South Dakota' & toplot$name %in% c('Corson'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Iowa' & toplot$name %in% c('Adams'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Iowa' & toplot$name %in% c('Montgomery'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Missouri' & toplot$name %in% c('Mercer'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Iowa' & toplot$name %in% c('Decatur'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Missouri' & toplot$name %in% c('Phelps'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Missouri' & toplot$name %in% c('Pulaski'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Missouri' & toplot$name %in% c('Reynolds'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Missouri' & toplot$name %in% c('Wayne'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Oklahoma' & toplot$name %in% c('Ottawa'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Kansas' & toplot$name %in% c('Cherokee'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Kentucky' & toplot$name %in% c('Magoffin'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Kentucky' & toplot$name %in% c('Johnson'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Pennsylvania' & toplot$name %in% c('Franklin'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Pennsylvania' & toplot$name %in% c('Fulton'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Ohio' & toplot$name %in% c('Auglaize'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Ohio' & toplot$name %in% c('Shelby'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Georgia' & toplot$name %in% c('Taylor'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Georgia' & toplot$name %in% c('Marion'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Illinois' & toplot$name %in% c('Cass'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Illinois' & toplot$name %in% c('Brown'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Tennessee' & toplot$name %in% c('Wayne'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Alabama' & toplot$name %in% c('Lauderdale'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Texas' & toplot$name %in% c('Red River','Camp'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Texas' & toplot$name %in% c('Titus'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Nebraska' & toplot$name %in% c('Butler','Pawnee'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Nebraska' & toplot$name %in% c('Johnson'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'New Mexico' & toplot$name %in% c('Lea'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Texas' & toplot$name %in% c('Winkler'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Kansas' & toplot$name %in% c('Morton'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Oklahoma' & toplot$name %in% c('Texas'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Georgia' & toplot$name %in% c('Seminole'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'Georgia' & toplot$name %in% c('Early'))])
+
+> toplot$DMA.CODE[which(toplot$state == 'Virginia' & toplot$name %in% c('Grayson'))] <- unique(toplot$DMA.CODE[which(toplot$state == 'North Carolina' & toplot$name %in% c('Alleghany'))])
+
+> as.data.frame(toplot) %>% ungroup() %>% select(state,DMA.CODE) %>% distinct() %>%
++   group_by(DMA.CODE) %>% summarise(n=n()) -> multiStateDMA
+`summarise()` ungrouping output (override with `.groups` argument)
+
+> toplot %>% left_join(multiStateDMA %>% mutate(DMA.CODE,multiState = (n > 1)+0) %>% select(-n)) -> toplot
+Joining, by = "DMA.CODE"
+
+> toplot$treated <- ifelse(toplot$state %in% c('Iowa','New Hampshire','South Carolina','Nevada',
++                                              'Alabama','Arkansas','California','Colorado','Maine',
++                                              'Massachusetts','Minnesota','North Carolina','Oklahoma',
++                                              'Tennessee','Texas','Utah','Vermont','Virginia'),0,1)
+
+> comparisons <- as.data.frame(toplot) %>% select(DMA.CODE,multiState,stab,treated) %>%
++   filter(multiState == 1) %>%
++   group_by(DMA.CODE) %>%
++   summarise(IDvar = mean(treated)) %>%
++   filter(IDvar > 0 & IDvar < 1)
+`summarise()` ungrouping output (override with `.groups` argument)
+
+> pdf('../Figures/figure2.pdf',width = 16,height = 12)
+
+> toplot %>%
++   left_join(comparisons) %>%
++   mutate(IDvar = ifelse(is.na(IDvar),0,IDvar)) %>%
++   mutate(treated2 = ifelse(treated == 1 & IDvar > 0,4,
++                            ifelse(treated == 0 & IDvar > 0,3,
++                                   ifelse(treated == 1 & IDvar == 0,2,1)))) %>%
++   mutate(treated2 = ifelse(IDvar > 0,treated2,'drop')) %>%
++   ggplot() + 
++   geom_sf(aes(fill = factor(treated2),color = treated2),size = .1) + 
++   scale_fill_manual(name = 'Primary Date',
++                     values = c('4' = '#1e1e1e','3' = '#878787',
++                                '2' = 'white','1' = 'white'),
++                     breaks = c('4','3'),
++                     labels = c('4' = 'Post-Outbreak','3' = 'Pre-Outbreak')) + 
++   scale_color_manual(guide = F,values = c('4' = 'white','3' = 'white','drop' = 'grey80'),na.translate = F) +
++   geom_sf(data = maps$DMA,color = 'black',fill = NA) +
++   theme_map()
+Joining, by = "DMA.CODE"
+
+> dev.off()
+null device 
+          1 
+
+> # Figure 3
+> p1 <- finalDat %>%
++   mutate(treat = ifelse(county_March17Cases > 0,1,0),
++          post = ifelse(date > as.Date('2020-03-10'),'Post March 10','Pre March 17')) %>%
++   group_by(treat,post) %>%
++   summarise(outcome = mean(pcttw_sanders,na.rm=T),
++             sd = sd(pcttw_sanders,na.rm=T)) %>%
++   ggplot(aes(x = factor(post,levels = c("Pre March 17","Post March 10")),y = outcome,
++              fill = factor(treat))) + 
++   stat_summary(fun.y = mean,geom = "bar",position = position_dodge(width = .9),
++                size = 3,alpha = .7) + 
++   scale_fill_manual(name = '',values = c('0' = 'grey80','1' = 'grey30'),
++                     labels = c('0' = 'Insulated on March 17th','1' = 'Exposed on March 17th')) + 
++   theme_ridges() + xlab('Period') + ylab('Sanders Two-Way Vote Share')
+`summarise()` regrouping output by 'treat' (override with `.groups` argument)
+
+> p2 <- finalDat %>%
++   mutate(post = ifelse(date > as.Date('2020-03-10'),'Post','Pre'),
++          logcases = log(county_March17Cases+1)) %>%
++   ggplot(aes(x = logcases,y = pcttw_sanders,color = factor(post,levels = c("Pre","Post")),size = turnout_20,weight = log(turnout_20+1))) + 
++   geom_point(alpha = .6) + 
++   geom_smooth(method = 'lm') +
++   scale_color_manual(name = "Period",values = c('Post' = 'grey30',"Pre" = "grey70")) + 
++   scale_size_continuous(guide = F) + 
++   theme_ridges() + xlab("March 17 Cases (logged)") + ylab('Sanders Two-Way Vote Share')
+
+> pdf('../Figures/figure3.pdf',width = 7,height = 5)
+
+> grid.arrange(p1 + theme(legend.position = 'bottom'),
++              p2 + theme(legend.position = 'bottom'),ncol = 2)
+`geom_smooth()` using formula 'y ~ x'
+
+> dev.off()
+null device 
+          1 
+
+> # SI Table 1
+> covariates <- c("sc_CTY_LTHS","sc_CTY_CollUp",'caucus_switch','caucus',
++                 "sc_CTY_LT30yo","sc_CTY_60Up",
++                 "sc_CTY_Below_poverty_level_AGE_18_64","sc_CTY_Female_hher_no_husbandhh",
++                 "sc_CTY_Unem_rate_pop_16_over","sc_CTY_Labor_Force_Part_Rate_pop_16_over",
++                 "sc_CTY_Manufactur","sc_CTY_Md_inc_hhs",
++                 "sc_CTY_POPPCT_RURAL","sc_CTY_Speak_only_English","sc_CTY_White","sc_CTY_Black_or_African_American",
++                 "ln_CTY_tot_pop","sc_turnout_pct_20")
+
+> maps$county %>% left_join(multiStateDMA %>% mutate(DMA.CODE,multiState = (n > 1)+0) %>% select(-n)) -> maps$county
+Joining, by = "DMA.CODE"
+
+> as.data.frame(maps$county) %>% ungroup() %>% select(FIPS,multiState) %>% 
++   distinct() %>%
++   left_join(finalDat,by = c("FIPS" = "stcou")) %>%
++   select(multiState,gsub("sc_|ln_","",covariates),pct_sanders16) -> tocompare
+
+> zeroOne <- function(x) {
++   return(x > 0 & x < 1)
++ }
+
+> div100 <- function(x) {
++   return(x/100)
++ }
+
+> tocompare %>% 
++   mutate(turnout_pct_20 = turnout_pct_20*100) %>%
++   gather(variable,value,-multiState) %>%
++   filter(complete.cases(.)) %>%
++   group_by(multiState,variable) %>%
++   summarise(value = list(value)) %>%
++   spread(multiState,value,sep = "_") %>% 
++   group_by(variable) %>%
++   mutate(p_value = round(t.test(unlist(multiState_0), unlist(multiState_1))$p.value,2),
++          t_value = round(t.test(unlist(multiState_0), unlist(multiState_1))$statistic,1),
++          avg_0 = round(mean(unlist(multiState_0),na.rm=T),1),
++          avg_1 = round(mean(unlist(multiState_1),na.rm=T),1),
++          sd_0 = round(sd(unlist(multiState_0),na.rm=T),1),
++          sd_1 = round(sd(unlist(multiState_1),na.rm=T),1)) %>%
++   select(variable,matches("avg|sd"),p_value,t_value) %>%
++   arrange(t_value) -> dma_fe_balance
+`summarise()` regrouping output by 'multiState' (override with `.groups` argument)
+
+> dma_fe_balance$variable <- gsub("_"," ",gsub("CTY_","",dma_fe_balance$variable))
+
+> stargazer(data.frame(dma_fe_balance %>% select(-matches("sd_"))),summary = F,digits = 1,out = '../Tables/SI-table1.tex')
+
+% Table created by stargazer v.5.2.2 by Marek Hlavac, Harvard University. E-mail: hlavac at fas.harvard.edu
+% Date and time: Wed, Jun 16, 2021 - 11:44:44 PM
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}} cccccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & variable & avg\_0 & avg\_1 & p\_value & t\_value \\ 
+\hline \\[-1.8ex] 
+1 & pct sanders16 & $39.7$ & $46.1$ & $0$ & $$-$8.9$ \\ 
+2 & caucus switch & $0.1$ & $0.2$ & $0$ & $$-$8.6$ \\ 
+3 & Speak only English & $86.8$ & $92$ & $0$ & $$-$8.5$ \\ 
+4 & Manufactur & $11.7$ & $13.5$ & $0$ & $$-$6$ \\ 
+5 & Labor Force Part Rate pop 16 over & $56.9$ & $59$ & $0$ & $$-$5.8$ \\ 
+6 & caucus & $0$ & $0.1$ & $0$ & $$-$5.3$ \\ 
+7 & White & $81.1$ & $84.7$ & $0$ & $$-$5$ \\ 
+8 & POPPCT RURAL & $54.4$ & $60.3$ & $0$ & $$-$4.2$ \\ 
+9 & CollUp & $29$ & $30.2$ & $0.01$ & $$-$2.6$ \\ 
+10 & Md inc hhs & $49,328.1$ & $49,575.1$ & $0.7$ & $$-$0.4$ \\ 
+11 & 60Up & $24.8$ & $24.8$ & $1.0$ & $0$ \\ 
+12 & LT30yo & $37.4$ & $37$ & $0.1$ & $1.4$ \\ 
+13 & Below poverty level AGE 18 64 & $9.4$ & $8.9$ & $0$ & $2.9$ \\ 
+14 & turnout pct 20 & $9.1$ & $8.2$ & $0$ & $3.1$ \\ 
+15 & Black or African American & $11$ & $8.3$ & $0$ & $3.9$ \\ 
+16 & tot pop & $167,608$ & $76,765.9$ & $0$ & $4.5$ \\ 
+17 & LTHS & $15$ & $13.5$ & $0$ & $5$ \\ 
+18 & Unem rate pop 16 over & $6.9$ & $6.2$ & $0$ & $5.6$ \\ 
+19 & Female hher no husbandhh & $11.9$ & $10.8$ & $0$ & $6$ \\ 
+\hline \\[-1.8ex] 
+\end{tabular} 
+\end{table} 

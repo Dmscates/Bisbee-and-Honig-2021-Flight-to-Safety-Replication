@@ -1,0 +1,68 @@
+
+> # File name: figure4.R
+> # In: 
+> #   - replication_data.RData
+> # Out: 
+> #   - /Figures/figure4.pdf
+> 
+> require(lme4)
+
+> require(lfe)
+
+> require(MatchIt)
+
+> require(WeightIt)
+
+> require(tjbal)
+
+> require(optmatch)
+
+> require(stargazer)
+
+> require(cobalt)
+
+> require(tidyverse)
+
+> require(ggridges)
+
+> rm(list = ls())
+
+> gc()
+          used  (Mb) gc trigger  (Mb) max used  (Mb)
+Ncells 3140854 167.8    5135950 274.3  5135950 274.3
+Vcells 6341884  48.4   35329852 269.6 36433966 278.0
+
+> ####################################################################################################################### Loading data
+> load('../Data/replication_data.RData')
+
+> ####################################################################################################################### Loading functions
+> source('./helper_functions.R')
+
+> # Figure 4
+> finalDat$post <- ifelse(finalDat$date > as.Date('2020-03-10'),1,0)
+
+> finalDat$treat <- ifelse(finalDat$DMA_March17Cases > 1,1,0)
+
+> summary(tmp <- lmer(as.formula(paste0("pcttw_sanders ~ treat*post + (1|DMA_CODE)")),finalDat))$coefficients
+             Estimate Std. Error   t value
+(Intercept) 35.602453  1.2312333 28.916090
+treat        3.945735  0.9472619  4.165411
+post        -7.487461  1.8145968 -4.126240
+treat:post  -6.970994  2.1467317 -3.247259
+
+> toplot <- data.frame(interaction_plot_continuous(tmp,num_points = 2,pointsplot = T))
+
+> pdf('../Figures/figure4.pdf',width = 7,height = 5)
+
+> toplot %>%
++   mutate(x = factor(ifelse(x_2 == 0,'Pre','Post'),levels = c('Pre','Post'))) %>%
++   ggplot(aes(x = x,y = delta_1))+ 
++   geom_point() + 
++   geom_errorbar(aes(ymin = lb,ymax = ub),width= .1) + 
++   geom_hline(yintercept = 0,linetype = 'dashed') + 
++   xlab("Period") + ylab("Marginal Effect of Exposure") + 
++   theme_ridges()
+
+> dev.off()
+null device 
+          1 
