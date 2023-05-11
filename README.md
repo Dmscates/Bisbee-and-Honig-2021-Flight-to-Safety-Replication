@@ -1,4 +1,4 @@
-# Bisbee-and-Honig-2022-Flight-to-Safety-Replication
+# Bisbee-and-Honig-2021-Flight-to-Safety-Replication
 Malmberg and Scates
 
 This contains the replication data for Bisbee and Honig (2021), Flight to Safety: COVID-Induced Changes in the Intensity of Status Quo Preference and Voting Behavior, as part of the Institute for Replications efforts.
